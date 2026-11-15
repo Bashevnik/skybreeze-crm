@@ -7,10 +7,15 @@
     ) minmax(100px, 0.72fr) minmax(90px, 0.62fr) minmax(108px, 0.78fr) minmax(120px, 0.9fr) 20px;
   gap: 11px;
 }
+.workbench,
+.lead-list,
+.lead-group {
+  overflow: visible;
+}
 .lead-head {
   position: sticky;
   top: 0;
-  z-index: 12;
+  z-index: 30;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid #cfd9e6;
   background: rgba(248, 250, 253, 0.97);
