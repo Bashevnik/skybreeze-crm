@@ -90,9 +90,17 @@ function isExternalUrl(value = "") {
   }
 }
 function contactMarkup(lead) {
-  return isTelegramUsername(lead.telegram)
-    ? `<a href="https://t.me/${escapeHtml(lead.telegram.slice(1))}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">${escapeHtml(lead.telegram)}</a>`
-    : escapeHtml(lead.phone || lead.telegram || "—");
+  const username = isTelegramUsername(lead.telegram)
+    ? lead.telegram.slice(1)
+    : "";
+  const phone = String(lead.phone || "").trim();
+  const display = username ? `@${username}` : phone || lead.telegram || "—";
+  const telegramUrl = username
+    ? `https://t.me/${encodeURIComponent(username)}`
+    : /^\+380\d{9}$/.test(phone.replace(/[\s()-]/g, ""))
+      ? `https://t.me/${phone.replace(/[\s()-]/g, "")}`
+      : "";
+  return `<span class="contact-stack"><span>${escapeHtml(display)}</span>${telegramUrl ? `<a href="${escapeHtml(telegramUrl)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Написати в TG ↗</a>` : ""}</span>`;
 }
 function isContacted(lead) {
   const status = String(lead.outreach_status || "").trim().toLowerCase();
@@ -123,14 +131,14 @@ function materialMarkup(lead) {
   return `<a class="material-link" href="${escapeHtml(lead.attachment)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Фото / концепт ↗</a>`;
 }
 function leadRow(lead) {
-  return `<button class="lead-row" data-lead="${lead.id}">
+  return `<div class="lead-row" data-lead="${lead.id}" role="button" tabindex="0">
     <span class="lead-main"><b>${escapeHtml(lead.name)}</b><small>${escapeHtml(lead.business_info || lead.direction || lead.link || "Без опису")}</small></span>
     <span>${contactMarkup(lead)}</span>
     <span>${tag(lead.outreach_status || "Не писали", statusClass(lead.outreach_status))}</span>
     <span>${escapeHtml(lead.owner || "—")}</span>
     <span class="lead-message">${escapeHtml(short(messagePreview(lead), 66))}</span>
     <span>${materialMarkup(lead)}</span><span class="chevron">›</span>
-  </button>`;
+  </div>`;
 }
 function tableHeader() {
   return '<div class="lead-head"><span>Бізнес</span><span>Контакт</span><span>Написали?</span><span>Хто веде</span><span>Текст / офер</span><span>Матеріали</span><span></span></div>';
@@ -336,6 +344,14 @@ document.addEventListener("click", async (event) => {
       .forEach((x) => x.classList.toggle("active", x === view));
     return loadLeads();
   }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (event.target.closest("a, button, input, select, textarea")) return;
+  const row = event.target.closest("[data-lead]");
+  if (!row) return;
+  event.preventDefault();
+  openLead(row.dataset.lead);
 });
 let debounce;
 $("#search").addEventListener("input", () => {
