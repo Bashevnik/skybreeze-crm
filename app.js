@@ -96,14 +96,24 @@ function contactMarkup(lead) {
 }
 function isContacted(lead) {
   const status = String(lead.outreach_status || "").trim().toLowerCase();
-  const explicitlyNotContacted = /^(не\s*(писали|написали|відписали|відписав)|нет|ні|no|0|—|-)$/.test(
-    status,
-  );
-  if (status && !explicitlyNotContacted) return true;
+  if (
+    /не\s*(отпис|пис|напис|відпис)|нет|ні|^no$|^0$|^—$|^-$|на кой.*отпис/.test(
+      status,
+    )
+  )
+    return false;
+  if (/отпис|напис|відпис|відправ|^да$|^так$|^yes$|^1$/.test(status))
+    return true;
   return Boolean(
     String(lead.first_contact_at || "").trim() ||
       String(lead.last_contact_at || "").trim(),
   );
+}
+function ownerGroup(lead) {
+  const owner = String(lead.owner || "").trim().toLowerCase();
+  if (/сан|саш|алекс/.test(owner)) return "sanya";
+  if (/ст[её]п/.test(owner)) return "stepa";
+  return "other";
 }
 function messagePreview(lead) {
   return lead.sent_message || lead.message_variant || lead.extra_message || "—";
@@ -132,11 +142,14 @@ function leadGroup(title, subtitle, leads, type) {
 function renderTable(leads) {
   const fresh = leads.filter((lead) => !isContacted(lead));
   const contacted = leads.filter((lead) => isContacted(lead));
+  const sanya = contacted.filter((lead) => ownerGroup(lead) === "sanya");
+  const stepa = contacted.filter((lead) => ownerGroup(lead) === "stepa");
+  const other = contacted.filter((lead) => ownerGroup(lead) === "other");
   $("#queue-summary").textContent = leads.length
     ? `${fresh.length} нових · ${contacted.length} у роботі`
     : "";
   $("#lead-list").innerHTML = leads.length
-    ? `${leadGroup("Ще не написали", "Нові — саме з них починається робота", fresh, "fresh")}${leadGroup("Вже написали", "Історія повідомлень, матеріали та фоллоуап", contacted, "contacted")}`
+    ? `${leadGroup("Ще не написали", "Нові — саме з них починається робота", fresh, "fresh")}${leadGroup("Вже написав Саня", "Повідомлення, матеріали та наступні дії Олександра", sanya, "contacted owner-sanya")}${leadGroup("Вже написав Стёпа", "Повідомлення, матеріали та наступні дії Стёпи", stepa, "contacted owner-stepa")}${leadGroup("Вже написали · без відповідального", "Потрібно призначити відповідального", other, "contacted owner-other")}`
     : '<div class="empty">Нічого не знайдено. Зміни фільтри або додай лід.</div>';
   $("#lead-list").classList.remove("hidden");
   $("#kanban").classList.add("hidden");
