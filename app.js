@@ -99,6 +99,55 @@ function isExternalUrl(value = "") {
     return false;
   }
 }
+function extractUrls(...values) {
+  const found = [];
+  for (const value of values.flat()) {
+    const matches = String(value || "").match(/https?:\/\/[^\s<>"']+/gi) || [];
+    for (const match of matches) {
+      const clean = match.replace(/[),.;!?]+$/g, "");
+      if (isExternalUrl(clean) && !found.includes(clean)) found.push(clean);
+    }
+  }
+  return found;
+}
+function sourceType(url = "") {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+    if (host.endsWith("olx.ua")) return { label: "OLX", rank: 0, cls: "olx" };
+    if (host.includes("instagram.com"))
+      return { label: "Instagram", rank: 2, cls: "social" };
+    if (host.includes("facebook.com") || host === "fb.com")
+      return { label: "Facebook", rank: 2, cls: "social" };
+    if (host.includes("t.me")) return { label: "Telegram", rank: 3, cls: "social" };
+    return { label: "Сайт", rank: 1, cls: "site" };
+  } catch {
+    return { label: "Джерело", rank: 4, cls: "source" };
+  }
+}
+function collectLeadLinks(lead) {
+  return extractUrls(
+    lead.link,
+    lead.business_info,
+    lead.personalization,
+    lead.comment,
+    lead.pain,
+    lead.offer,
+    lead.extra_message,
+    lead.sent_message,
+  )
+    .map((url) => ({ url, ...sourceType(url) }))
+    .sort((a, b) => a.rank - b.rank);
+}
+function sourceLinksMarkup(lead, limit = Infinity) {
+  const links = collectLeadLinks(lead).slice(0, limit);
+  if (!links.length) return '<span class="muted">Посилання ще не знайдено</span>';
+  return links
+    .map(
+      ({ url, label, cls }) =>
+        `<a class="source-chip ${cls}" href="${escapeHtml(url)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">${label} ↗</a>`,
+    )
+    .join("");
+}
 function contactMarkup(lead) {
   const username = isTelegramUsername(lead.telegram)
     ? lead.telegram.slice(1)
@@ -144,7 +193,7 @@ function materialMarkup(lead) {
 }
 function leadRow(lead) {
   return `<div class="lead-row" data-lead="${lead.id}" role="button" tabindex="0">
-    <span class="lead-main"><b>${escapeHtml(lead.name)}</b><small>${escapeHtml(lead.business_info || lead.direction || lead.link || "Без опису")}</small></span>
+    <span class="lead-main"><span class="lead-title-line"><b>${escapeHtml(lead.name)}</b><span class="lead-row-sources">${sourceLinksMarkup(lead, 2)}</span></span><small>${escapeHtml(lead.business_info || lead.direction || "Без опису")}</small></span>
     <span>${contactMarkup(lead)}</span>
     <span>${tag(lead.outreach_status || "Не писали", statusClass(lead.outreach_status))}</span>
     <span>${escapeHtml(lead.owner || "—")}</span>
@@ -286,14 +335,23 @@ async function openLead(leadId) {
   const lead = await request(`/api/leads/${leadId}`);
   state.selected = lead;
   const contact = lead.telegram || lead.phone || "Контакт не вказано";
-  const sourceLink = isExternalUrl(lead.link)
-    ? `<a href="${escapeHtml(lead.link)}" target="_blank" rel="noreferrer">Відкрити джерело ↗</a>`
+  const normalizedPhone = normalizeUkrainianPhone(
+    lead.phone || lead.telegram || "",
+  );
+  const username = isTelegramUsername(lead.telegram)
+    ? lead.telegram.slice(1)
     : "";
+  const telegramUrl = username
+    ? `https://t.me/${encodeURIComponent(username)}`
+    : normalizedPhone
+      ? `https://t.me/${normalizedPhone}`
+      : "";
+  const contactActions = `${normalizedPhone ? `<a class="contact-action" href="tel:${escapeHtml(normalizedPhone)}">Подзвонити</a>` : ""}${telegramUrl ? `<a class="contact-action" href="${escapeHtml(telegramUrl)}" target="_blank" rel="noreferrer">Написати в TG ↗</a>` : ""}`;
   const attachment = isExternalUrl(lead.attachment)
     ? `<section class="asset-card"><div><p class="eyebrow">МАТЕРІАЛИ</p><h3>Що прикріплено до ліда</h3><a href="${escapeHtml(lead.attachment)}" target="_blank" rel="noreferrer">Відкрити фото / скрин або концепт ↗</a></div><img src="${escapeHtml(lead.attachment)}" alt="Матеріал для ${escapeHtml(lead.name)}" onerror="this.remove()"></section>`
     : `<section class="asset-card empty-asset"><div><p class="eyebrow">МАТЕРІАЛИ</p><h3>Фото або концепт ще не прикріплено</h3><p>Коли матеріал з’явиться у таблиці, він буде показаний тут.</p></div></section>`;
   $("#drawer-content").innerHTML =
-    `<section class="lead-identity"><p class="eyebrow">ПРОФІЛ БІЗНЕСУ · ${escapeHtml(lead.source_tab)}</p><h2>${escapeHtml(lead.name)}</h2><p>${escapeHtml(lead.direction || "Ніша не вказана")}</p><div class="identity-meta"><span>${escapeHtml(contact)}</span>${sourceLink}</div></section>
+    `<section class="lead-identity"><p class="eyebrow">ПРОФІЛ БІЗНЕСУ · ${escapeHtml(lead.source_tab)}</p><h2>${escapeHtml(lead.name)}</h2><p>${escapeHtml(lead.direction || "Ніша не вказана")}</p><div class="lead-primary-data"><div><small>OLX / САЙТ / СОЦМЕРЕЖА</small><div class="source-chips">${sourceLinksMarkup(lead)}</div></div><div><small>КОНТАКТ</small><strong>${escapeHtml(contact)}</strong><div class="contact-actions">${contactActions || '<span class="muted">Немає прямого контакту</span>'}</div></div></div></section>
   <section class="workflow-strip"><div><small>Написали?</small>${tag(lead.outreach_status || "Не писали", statusClass(lead.outreach_status))}</div><div><small>Хто веде</small><b>${escapeHtml(lead.owner || "Не призначено")}</b></div><div><small>Результат</small>${tag(lead.status || lead.result || "Новий", statusClass(lead.status || lead.result))}</div><div><small>Наступна дія</small><b>${escapeHtml(lead.next_step || "—")}</b></div></section>
   ${attachment}
   <section class="card-section"><div class="section-head"><div><p class="eyebrow">КОНТЕКСТ</p><h3>Бізнес і джерело</h3></div><p>Те, що треба знати про самого ліда перед контактом.</p></div><div class="form-grid">${profileFields.map((field) => inputFor(field, lead)).join("")}</div></section>
