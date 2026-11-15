@@ -193,7 +193,8 @@ function materialMarkup(lead) {
 }
 function leadRow(lead) {
   return `<div class="lead-row" data-lead="${lead.id}" role="button" tabindex="0">
-    <span class="lead-main"><span class="lead-title-line"><b>${escapeHtml(lead.name)}</b><span class="lead-row-sources">${sourceLinksMarkup(lead, 2)}</span></span><small>${escapeHtml(lead.business_info || lead.direction || "Без опису")}</small></span>
+    <span class="lead-main"><b>${escapeHtml(lead.name)}</b><small>${escapeHtml(lead.business_info || lead.direction || "Без опису")}</small></span>
+    <span class="lead-source-cell">${sourceLinksMarkup(lead, 2)}</span>
     <span>${contactMarkup(lead)}</span>
     <span>${tag(lead.outreach_status || "Не писали", statusClass(lead.outreach_status))}</span>
     <span>${escapeHtml(lead.owner || "—")}</span>
@@ -202,7 +203,7 @@ function leadRow(lead) {
   </div>`;
 }
 function tableHeader() {
-  return '<div class="lead-head"><span>Бізнес</span><span>Контакт</span><span>Написали?</span><span>Хто веде</span><span>Текст / офер</span><span>Матеріали</span><span></span></div>';
+  return '<div class="lead-head"><span>Бізнес</span><span>OLX / Сайт</span><span>Контакт</span><span>Написали?</span><span>Хто веде</span><span>Текст / офер</span><span>Матеріали</span><span></span></div>';
 }
 function leadGroup(title, subtitle, leads, type) {
   if (!leads.length) return "";
