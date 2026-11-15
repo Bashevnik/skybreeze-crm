@@ -78,6 +78,20 @@
   font-size: 11px;
   line-height: 1.4;
 }
+.contact-stack {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+.contact-stack > span {
+  color: #263851;
+}
+.contact-stack a {
+  color: #176eac;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
 .material-link {
   color: #176eac;
   font-size: 11px;
