@@ -203,6 +203,7 @@ async function loadLeads() {
   const q = new URLSearchParams({ page: state.page, pageSize: 250 });
   const map = tabs();
   if (map[state.tab]) q.set("tab", map[state.tab]);
+  if (state.tab === "all") q.set("excludeTab", "Все лиды (архив)");
   if ($("#search").value.trim()) q.set("q", $("#search").value.trim());
   if ($("#status-filter").value) q.set("status", $("#status-filter").value);
   if ($("#source-filter").value) q.set("source", $("#source-filter").value);
