@@ -94,11 +94,19 @@ function contactMarkup(lead) {
     ? lead.telegram.slice(1)
     : "";
   const phone = String(lead.phone || "").trim();
+  const phoneCandidate = phone || String(lead.telegram || "").trim();
+  const digits = phoneCandidate.replace(/\D/g, "");
+  const normalizedPhone =
+    digits.length === 12 && digits.startsWith("380")
+      ? `+${digits}`
+      : digits.length === 10 && digits.startsWith("0")
+        ? `+38${digits}`
+        : "";
   const display = username ? `@${username}` : phone || lead.telegram || "—";
   const telegramUrl = username
     ? `https://t.me/${encodeURIComponent(username)}`
-    : /^\+380\d{9}$/.test(phone.replace(/[\s()-]/g, ""))
-      ? `https://t.me/${phone.replace(/[\s()-]/g, "")}`
+    : normalizedPhone
+      ? `https://t.me/${normalizedPhone}`
       : "";
   return `<span class="contact-stack"><span>${escapeHtml(display)}</span>${telegramUrl ? `<a href="${escapeHtml(telegramUrl)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Написати в TG ↗</a>` : ""}</span>`;
 }
