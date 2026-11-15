@@ -11,8 +11,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261115-3" />
-    <link rel="stylesheet" href="crm-layout.css?v=20261115-3" />
+    <link rel="stylesheet" href="styles.css?v=20261115-4" />
+    <link rel="stylesheet" href="crm-layout.css?v=20261115-4" />
   </head>
   <body>
     <div class="app-shell">
@@ -100,9 +100,22 @@
         </section>
       </main>
     </div>
-    <aside class="drawer hidden" id="drawer" aria-label="Lead details">
+    <button
+      class="drawer-backdrop hidden"
+      id="drawer-backdrop"
+      type="button"
+      aria-label="Закрити картку ліда"
+      tabindex="-1"
+    ></button>
+    <aside
+      class="drawer hidden"
+      id="drawer"
+      aria-label="Картка ліда"
+      aria-modal="true"
+      role="dialog"
+    >
       <div class="drawer-head">
-        <button class="back" id="drawer-close">←</button
+        <button class="back" id="drawer-close" aria-label="Закрити картку">←</button
         ><span class="drawer-title">Картка ліда</span
         ><button class="icon-button" id="save-lead">Зберегти</button>
       </div>
@@ -132,6 +145,6 @@
       </form>
     </dialog>
     <script src="config.js"></script>
-    <script src="app.js?v=20261115-3"></script>
+    <script src="app.js?v=20261115-4"></script>
   </body>
 </html>
