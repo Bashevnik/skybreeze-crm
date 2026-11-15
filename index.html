@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>SkyBreeze CRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">SB</span><span>SkyBreeze<br><b>CRM</b></span></div>
+      <nav class="nav" aria-label="CRM navigation">
+        <button class="nav-item active" data-tab="all"><span>⌘</span> Усі ліди <em id="nav-total">—</em></button>
+        <button class="nav-item" data-tab="pipeline"><span>↗</span> В роботі</button>
+        <button class="nav-item" data-tab="olx"><span>◫</span> OLX · номер</button>
+        <button class="nav-item" data-tab="archive"><span>▣</span> Архів</button>
+      </nav>
+      <div class="sidebar-foot"><span class="pulse"></span> База збережена<br><small id="sync-label">Локальна база даних</small></div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">SALES OPERATING SYSTEM</p><h1 id="page-title">Усі ліди</h1></div>
+        <div class="top-actions"><button class="icon-button" id="settings-btn" title="Доступ до API">⚙</button><button class="primary" id="new-lead">+ Новий лід</button></div>
+      </header>
+      <section class="metrics" aria-label="Dashboard metrics">
+        <article><span>Лідів у базі</span><strong id="metric-total">—</strong><small>з таблиці та CRM</small></article>
+        <article><span>В очікуванні</span><strong id="metric-waiting">—</strong><small>потребують фоллоуапу</small></article>
+        <article><span>Гарячі</span><strong id="metric-hot">—</strong><small>пріоритетні контакти</small></article>
+        <article><span>Наступні дії</span><strong id="metric-actions">—</strong><small>заплановано у CRM</small></article>
+      </section>
+      <section class="workbench">
+        <div class="toolbar">
+          <label class="search"><span>⌕</span><input id="search" placeholder="Назва, Telegram, номер або нотатка"></label>
+          <select id="status-filter"><option value="">Усі статуси</option></select>
+          <select id="source-filter"><option value="">Усі джерела</option></select>
+          <button class="ghost" id="clear-filters">Очистити</button>
+        </div>
+        <div class="list-meta"><span id="result-count">Завантаження…</span><div class="view-switch"><button class="mini active" data-view="table">☷</button><button class="mini" data-view="kanban">▦</button></div></div>
+        <div id="lead-list" class="lead-list"></div>
+        <div id="kanban" class="kanban hidden"></div>
+      </section>
+    </main>
+  </div>
+  <aside class="drawer hidden" id="drawer" aria-label="Lead details"><div class="drawer-head"><button class="back" id="drawer-close">←</button><span class="drawer-title">Картка ліда</span><button class="icon-button" id="save-lead">Зберегти</button></div><div id="drawer-content"></div></aside>
+  <dialog id="settings-dialog"><form method="dialog"><button class="dialog-close" aria-label="Закрити">×</button><p class="eyebrow">ПІДКЛЮЧЕННЯ</p><h2>Доступ до API</h2><p>Для зовнішньої HTTPS-версії введи адресу API та токен запису. На локальному сервері це не потрібно.</p><label>API URL<input id="api-url" placeholder="https://crm-api.example.com"></label><label>Токен запису<input id="api-token" type="password" placeholder="Не зберігається на сервері"></label><button class="primary" value="default" id="save-settings">Зберегти підключення</button></form></dialog>
+  <script src="config.js"></script><script src="app.js"></script>
+</body>
+</html>
