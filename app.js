@@ -82,6 +82,16 @@ function renderDashboard() {
 function isTelegramUsername(value = "") {
   return /^@[a-zA-Z0-9_]{5,}$/.test(String(value).trim());
 }
+function normalizeUkrainianPhone(value = "") {
+  const candidates =
+    String(value).match(/(?:\+?38[\s().-]*)?0\d(?:[\s().-]*\d){8}/g) || [];
+  for (const candidate of candidates) {
+    const digits = candidate.replace(/\D/g, "");
+    if (digits.length === 12 && digits.startsWith("380")) return `+${digits}`;
+    if (digits.length === 10 && digits.startsWith("0")) return `+38${digits}`;
+  }
+  return "";
+}
 function isExternalUrl(value = "") {
   try {
     return ["http:", "https:"].includes(new URL(String(value).trim()).protocol);
@@ -95,13 +105,7 @@ function contactMarkup(lead) {
     : "";
   const phone = String(lead.phone || "").trim();
   const phoneCandidate = phone || String(lead.telegram || "").trim();
-  const digits = phoneCandidate.replace(/\D/g, "");
-  const normalizedPhone =
-    digits.length === 12 && digits.startsWith("380")
-      ? `+${digits}`
-      : digits.length === 10 && digits.startsWith("0")
-        ? `+38${digits}`
-        : "";
+  const normalizedPhone = normalizeUkrainianPhone(phoneCandidate);
   const display = username ? `@${username}` : phone || lead.telegram || "—";
   const telegramUrl = username
     ? `https://t.me/${encodeURIComponent(username)}`
