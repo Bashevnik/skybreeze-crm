@@ -244,17 +244,25 @@ function workflowTone(field, value = "") {
   if (/не актуально|нет ответа|очищен/.test(normalized)) return "muted";
   return normalized ? "active" : "empty";
 }
-function optionMarkup(options, selected) {
+function emptyOptionLabel(field) {
+  return {
+    outreach_status: "Не отписал",
+    owner: "Не назначено",
+    result: "Новый",
+    qualification: "Без квалификации",
+  }[field] || "Не выбрано";
+}
+function optionMarkup(options, selected, field) {
   return options
     .map(
       (value) =>
-        `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(value || "Не выбрано")}</option>`,
+        `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(value || emptyOptionLabel(field))}</option>`,
     )
     .join("");
 }
 function quickSelect(lead, field, label) {
   const value = String(lead[field] || "");
-  return `<label class="quick-field" title="${escapeHtml(label)}"><span>${escapeHtml(label)}</span><select class="quick-select" data-quick-field="${field}" data-lead-id="${lead.id}" data-tone="${workflowTone(field, value)}" aria-label="${escapeHtml(label)}">${optionMarkup(workflowOptions[field], value)}</select></label>`;
+  return `<label class="quick-field" title="${escapeHtml(label)}"><span>${escapeHtml(label)}</span><select class="quick-select" data-quick-field="${field}" data-lead-id="${lead.id}" data-tone="${workflowTone(field, value)}" aria-label="${escapeHtml(label)}">${optionMarkup(workflowOptions[field], value, field)}</select></label>`;
 }
 function leadRow(lead) {
   return `<div class="lead-row" data-lead="${lead.id}" role="button" tabindex="0">
@@ -387,7 +395,7 @@ function inputFor([key, label], lead) {
   const value = lead[key] || "";
   const optionField = key === "status" ? "result" : key;
   if (workflowOptions[optionField]) {
-    return `<label class="field"><span>${label}</span><select data-field="${key}" data-tone="${workflowTone(optionField, value)}">${optionMarkup(workflowOptions[optionField], value)}</select></label>`;
+    return `<label class="field"><span>${label}</span><select data-field="${key}" data-tone="${workflowTone(optionField, value)}">${optionMarkup(workflowOptions[optionField], value, optionField)}</select></label>`;
   }
   const multiline = [
     "business_info",
