@@ -410,6 +410,7 @@ function inputFor([key, label], lead) {
   return `<label class="field ${multiline ? "wide" : ""}"><span>${label}</span>${multiline ? `<textarea data-field="${key}" rows="${key === "sent_message" ? 6 : 3}">${escapeHtml(value)}</textarea>` : `<input data-field="${key}" type="${type}" value="${escapeHtml(value)}">`}</label>`;
 }
 async function openLead(leadId) {
+  state.drawerReturnFocus = document.activeElement;
   const lead = await request(`/api/leads/${leadId}`);
   state.selected = lead;
   const contact = lead.telegram || lead.phone || "Контакт не вказано";
@@ -436,6 +437,9 @@ async function openLead(leadId) {
   <section class="card-section workflow-section"><div class="section-head"><div><p class="eyebrow">КОМУНІКАЦІЯ</p><h3>Ведення ліда</h3></div><p>Операційні статуси й підготовка контакту.</p></div><div class="form-grid">${workflowFields.map((field) => inputFor(field, lead)).join("")}</div></section>
   <section class="notes"><div class="section-head"><div><p class="eyebrow">ІСТОРІЯ</p><h3>Нотатки по ліду</h3></div></div><form id="note-form"><textarea id="new-note" rows="3" placeholder="Що сталося, про що домовились, коли повернутись?"></textarea><button class="ghost">Додати нотатку</button></form><div class="note-list">${lead.notes.map((note) => `<article class="note"><p>${escapeHtml(note.body)}</p><small>${escapeHtml(note.author)} · ${new Date(note.created_at).toLocaleString("uk-UA")}</small></article>`).join("") || '<p class="muted">Ще немає нотаток</p>'}</div></section>`;
   $("#drawer").classList.remove("hidden");
+  $("#drawer-backdrop").classList.remove("hidden");
+  document.body.classList.add("drawer-open");
+  $("#drawer-close").focus({ preventScroll: true });
   $("#note-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const body = $("#new-note").value.trim();
@@ -447,6 +451,17 @@ async function openLead(leadId) {
     await openLead(state.selected.id);
     await refresh();
   });
+}
+function closeLead() {
+  if ($("#drawer").classList.contains("hidden")) return;
+  $("#drawer").classList.add("hidden");
+  $("#drawer-backdrop").classList.add("hidden");
+  document.body.classList.remove("drawer-open");
+  state.selected = null;
+  if (state.drawerReturnFocus?.focus) {
+    state.drawerReturnFocus.focus({ preventScroll: true });
+  }
+  state.drawerReturnFocus = null;
 }
 async function saveLead() {
   if (!state.selected) return;
@@ -517,6 +532,15 @@ document.addEventListener("change", async (event) => {
   }
 });
 document.addEventListener("keydown", (event) => {
+  if (
+    event.key === "Escape" &&
+    !$("#drawer").classList.contains("hidden") &&
+    !$("#settings-dialog").open
+  ) {
+    event.preventDefault();
+    closeLead();
+    return;
+  }
   if (event.key !== "Enter" && event.key !== " ") return;
   if (event.target.closest("a, button, input, select, textarea")) return;
   const row = event.target.closest("[data-lead]");
@@ -537,7 +561,8 @@ $("#clear-filters").onclick = () => {
   $("#source-filter").value = "";
   loadLeads();
 };
-$("#drawer-close").onclick = () => $("#drawer").classList.add("hidden");
+$("#drawer-close").onclick = closeLead;
+$("#drawer-backdrop").onclick = closeLead;
 $("#save-lead").onclick = () =>
   saveLead().catch((error) => alert(error.message));
 $("#new-lead").onclick = () =>
