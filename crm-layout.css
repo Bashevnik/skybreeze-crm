@@ -78,6 +78,79 @@
   font-size: 11px;
   line-height: 1.4;
 }
+.quick-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.quick-field > span {
+  display: none;
+}
+.lead-main .quick-field {
+  width: max-content;
+  max-width: 100%;
+  margin-top: 5px;
+}
+.quick-select,
+.field select {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 25px 6px 9px;
+  border: 1px solid #d8e1ec;
+  border-radius: 9px;
+  background: #f6f8fb;
+  color: #40516a;
+  font: 700 10px Inter, sans-serif;
+  cursor: pointer;
+  outline: none;
+}
+.quick-select:hover,
+.quick-select:focus,
+.field select:focus {
+  border-color: #75a7d5;
+  box-shadow: 0 0 0 3px rgba(66, 142, 207, 0.12);
+}
+.quick-select[data-tone="sent"],
+.quick-select[data-tone="success"] {
+  border-color: #a9dfcf;
+  background: #e8faf4;
+  color: #08735e;
+}
+.quick-select[data-tone="pending"],
+.quick-select[data-tone="warm"] {
+  border-color: #f0d795;
+  background: #fff8df;
+  color: #8a6410;
+}
+.quick-select[data-tone="sanya"],
+.quick-select[data-tone="active"] {
+  border-color: #bad7f5;
+  background: #edf6ff;
+  color: #245f99;
+}
+.quick-select[data-tone="stepa"],
+.quick-select[data-tone="progress"] {
+  border-color: #d8c7f2;
+  background: #f6f0ff;
+  color: #704ba1;
+}
+.quick-select[data-tone="hot"],
+.quick-select[data-tone="danger"] {
+  border-color: #f1b4ad;
+  background: #fff0ee;
+  color: #a53b31;
+}
+.quick-select[data-tone="cold"],
+.quick-select[data-tone="muted"],
+.quick-select[data-tone="empty"] {
+  border-color: #dce2ea;
+  background: #f5f7fa;
+  color: #69788c;
+}
+.quick-select:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
 .contact-stack {
   display: grid;
   justify-items: start;
