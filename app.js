@@ -84,7 +84,7 @@ function isTelegramUsername(value = "") {
 }
 function normalizeUkrainianPhone(value = "") {
   const candidates =
-    String(value).match(/(?:\+?38[\s().-]*)?0\d(?:[\s().-]*\d){8}/g) || [];
+    String(value).match(/(?:\+?38[\s().-]*)?0(?:[\s().-]*\d){9}/g) || [];
   for (const candidate of candidates) {
     const digits = candidate.replace(/\D/g, "");
     if (digits.length === 12 && digits.startsWith("380")) return `+${digits}`;
