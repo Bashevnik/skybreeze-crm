@@ -82,6 +82,13 @@ function renderDashboard() {
 function isTelegramUsername(value = "") {
   return /^@[a-zA-Z0-9_]{5,}$/.test(String(value).trim());
 }
+function isExternalUrl(value = "") {
+  try {
+    return ["http:", "https:"].includes(new URL(String(value).trim()).protocol);
+  } catch {
+    return false;
+  }
+}
 function contactMarkup(lead) {
   return isTelegramUsername(lead.telegram)
     ? `<a href="https://t.me/${escapeHtml(lead.telegram.slice(1))}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">${escapeHtml(lead.telegram)}</a>`
@@ -214,8 +221,11 @@ async function openLead(leadId) {
   const lead = await request(`/api/leads/${leadId}`);
   state.selected = lead;
   const contact = lead.telegram || lead.phone || "Контакт не вказано";
+  const sourceLink = isExternalUrl(lead.link)
+    ? `<a href="${escapeHtml(lead.link)}" target="_blank" rel="noreferrer">Відкрити джерело ↗</a>`
+    : "";
   $("#drawer-content").innerHTML =
-    `<section class="lead-identity"><p class="eyebrow">ПРОФІЛ БІЗНЕСУ · ${escapeHtml(lead.source_tab)}</p><h2>${escapeHtml(lead.name)}</h2><p>${escapeHtml(lead.direction || "Ніша не вказана")}</p><div class="identity-meta"><span>${escapeHtml(contact)}</span>${lead.link ? `<a href="${escapeHtml(lead.link)}" target="_blank" rel="noreferrer">Відкрити джерело ↗</a>` : ""}</div></section>
+    `<section class="lead-identity"><p class="eyebrow">ПРОФІЛ БІЗНЕСУ · ${escapeHtml(lead.source_tab)}</p><h2>${escapeHtml(lead.name)}</h2><p>${escapeHtml(lead.direction || "Ніша не вказана")}</p><div class="identity-meta"><span>${escapeHtml(contact)}</span>${sourceLink}</div></section>
   <section class="workflow-strip"><div><small>Написали?</small>${tag(lead.outreach_status || "Не писали", statusClass(lead.outreach_status))}</div><div><small>Хто веде</small><b>${escapeHtml(lead.owner || "Не призначено")}</b></div><div><small>Результат</small>${tag(lead.status || lead.result || "Новий", statusClass(lead.status || lead.result))}</div><div><small>Наступна дія</small><b>${escapeHtml(lead.next_step || "—")}</b></div></section>
   <section class="card-section"><div class="section-head"><div><p class="eyebrow">КОНТЕКСТ</p><h3>Бізнес і джерело</h3></div><p>Те, що треба знати про самого ліда перед контактом.</p></div><div class="form-grid">${profileFields.map((field) => inputFor(field, lead)).join("")}</div></section>
   <section class="card-section workflow-section"><div class="section-head"><div><p class="eyebrow">КОМУНІКАЦІЯ</p><h3>Ведення ліда</h3></div><p>Операційні статуси й підготовка контакту.</p></div><div class="form-grid">${workflowFields.map((field) => inputFor(field, lead)).join("")}</div></section>
