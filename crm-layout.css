@@ -36,6 +36,16 @@
 .lead-group.contacted > header {
   background: linear-gradient(90deg, #f3f7fe, #fcfdff 62%);
 }
+.lead-group.owner-sanya > header {
+  background: linear-gradient(90deg, #edf5ff, #fcfdff 62%);
+}
+.lead-group.owner-stepa > header {
+  background: linear-gradient(90deg, #f5f1ff, #fdfcff 62%);
+}
+.lead-group.owner-stepa > header strong {
+  background: #eee7ff;
+  color: #694ab0;
+}
 .lead-group > header div {
   display: grid;
   gap: 3px;
