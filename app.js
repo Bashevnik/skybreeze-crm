@@ -94,19 +94,50 @@ function contactMarkup(lead) {
     ? `<a href="https://t.me/${escapeHtml(lead.telegram.slice(1))}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">${escapeHtml(lead.telegram)}</a>`
     : escapeHtml(lead.phone || lead.telegram || "—");
 }
+function isContacted(lead) {
+  const status = String(lead.outreach_status || "").trim().toLowerCase();
+  const explicitlyNotContacted = /^(не\s*(писали|написали|відписали|відписав)|нет|ні|no|0|—|-)$/.test(
+    status,
+  );
+  if (status && !explicitlyNotContacted) return true;
+  return Boolean(
+    String(lead.first_contact_at || "").trim() ||
+      String(lead.last_contact_at || "").trim(),
+  );
+}
+function messagePreview(lead) {
+  return lead.sent_message || lead.message_variant || lead.extra_message || "—";
+}
+function materialMarkup(lead) {
+  if (!isExternalUrl(lead.attachment)) return '<span class="muted">Немає</span>';
+  return `<a class="material-link" href="${escapeHtml(lead.attachment)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Фото / концепт ↗</a>`;
+}
 function leadRow(lead) {
   return `<button class="lead-row" data-lead="${lead.id}">
     <span class="lead-main"><b>${escapeHtml(lead.name)}</b><small>${escapeHtml(lead.business_info || lead.direction || lead.link || "Без опису")}</small></span>
     <span>${contactMarkup(lead)}</span>
     <span>${tag(lead.outreach_status || "Не писали", statusClass(lead.outreach_status))}</span>
     <span>${escapeHtml(lead.owner || "—")}</span>
-    <span>${tag(lead.status || lead.result || "Новий", statusClass(lead.status || lead.result))}</span>
-    <span>${escapeHtml(lead.next_step || "—")}</span><span class="chevron">›</span>
+    <span class="lead-message">${escapeHtml(short(messagePreview(lead), 66))}</span>
+    <span>${materialMarkup(lead)}</span><span class="chevron">›</span>
   </button>`;
 }
+function tableHeader() {
+  return '<div class="lead-head"><span>Бізнес</span><span>Контакт</span><span>Написали?</span><span>Хто веде</span><span>Текст / офер</span><span>Матеріали</span><span></span></div>';
+}
+function leadGroup(title, subtitle, leads, type) {
+  if (!leads.length) return "";
+  return `<section class="lead-group ${type}"><header><div><b>${title}</b><small>${subtitle}</small></div><strong>${leads.length}</strong></header>${tableHeader()}${leads.map(leadRow).join("")}</section>`;
+}
 function renderTable(leads) {
-  $("#lead-list").innerHTML =
-    `<div class="lead-head"><span>Бізнес</span><span>Контакт</span><span>Написали?</span><span>Хто веде</span><span>Результат</span><span>Наступна дія</span><span></span></div>${leads.map(leadRow).join("") || '<div class="empty">Нічого не знайдено. Зміни фільтри або додай лід.</div>'}`;
+  const fresh = leads.filter((lead) => !isContacted(lead));
+  const contacted = leads.filter((lead) => isContacted(lead));
+  $("#queue-summary").textContent = leads.length
+    ? `${fresh.length} нових · ${contacted.length} у роботі`
+    : "";
+  $("#lead-list").innerHTML = leads.length
+    ? `${leadGroup("Ще не написали", "Нові — саме з них починається робота", fresh, "fresh")}${leadGroup("Вже написали", "Історія повідомлень, матеріали та фоллоуап", contacted, "contacted")}`
+    : '<div class="empty">Нічого не знайдено. Зміни фільтри або додай лід.</div>';
   $("#lead-list").classList.remove("hidden");
   $("#kanban").classList.add("hidden");
 }
@@ -148,7 +179,7 @@ function renderKanban(leads) {
   $("#kanban").classList.remove("hidden");
 }
 async function loadLeads() {
-  const q = new URLSearchParams({ page: state.page, pageSize: 80 });
+  const q = new URLSearchParams({ page: state.page, pageSize: 250 });
   const map = tabs();
   if (map[state.tab]) q.set("tab", map[state.tab]);
   if ($("#search").value.trim()) q.set("q", $("#search").value.trim());
@@ -224,9 +255,13 @@ async function openLead(leadId) {
   const sourceLink = isExternalUrl(lead.link)
     ? `<a href="${escapeHtml(lead.link)}" target="_blank" rel="noreferrer">Відкрити джерело ↗</a>`
     : "";
+  const attachment = isExternalUrl(lead.attachment)
+    ? `<section class="asset-card"><div><p class="eyebrow">МАТЕРІАЛИ</p><h3>Що прикріплено до ліда</h3><a href="${escapeHtml(lead.attachment)}" target="_blank" rel="noreferrer">Відкрити фото / скрин або концепт ↗</a></div><img src="${escapeHtml(lead.attachment)}" alt="Матеріал для ${escapeHtml(lead.name)}" onerror="this.remove()"></section>`
+    : `<section class="asset-card empty-asset"><div><p class="eyebrow">МАТЕРІАЛИ</p><h3>Фото або концепт ще не прикріплено</h3><p>Коли матеріал з’явиться у таблиці, він буде показаний тут.</p></div></section>`;
   $("#drawer-content").innerHTML =
     `<section class="lead-identity"><p class="eyebrow">ПРОФІЛ БІЗНЕСУ · ${escapeHtml(lead.source_tab)}</p><h2>${escapeHtml(lead.name)}</h2><p>${escapeHtml(lead.direction || "Ніша не вказана")}</p><div class="identity-meta"><span>${escapeHtml(contact)}</span>${sourceLink}</div></section>
   <section class="workflow-strip"><div><small>Написали?</small>${tag(lead.outreach_status || "Не писали", statusClass(lead.outreach_status))}</div><div><small>Хто веде</small><b>${escapeHtml(lead.owner || "Не призначено")}</b></div><div><small>Результат</small>${tag(lead.status || lead.result || "Новий", statusClass(lead.status || lead.result))}</div><div><small>Наступна дія</small><b>${escapeHtml(lead.next_step || "—")}</b></div></section>
+  ${attachment}
   <section class="card-section"><div class="section-head"><div><p class="eyebrow">КОНТЕКСТ</p><h3>Бізнес і джерело</h3></div><p>Те, що треба знати про самого ліда перед контактом.</p></div><div class="form-grid">${profileFields.map((field) => inputFor(field, lead)).join("")}</div></section>
   <section class="card-section workflow-section"><div class="section-head"><div><p class="eyebrow">КОМУНІКАЦІЯ</p><h3>Ведення ліда</h3></div><p>Операційні статуси й підготовка контакту.</p></div><div class="form-grid">${workflowFields.map((field) => inputFor(field, lead)).join("")}</div></section>
   <section class="notes"><div class="section-head"><div><p class="eyebrow">ІСТОРІЯ</p><h3>Нотатки по ліду</h3></div></div><form id="note-form"><textarea id="new-note" rows="3" placeholder="Що сталося, про що домовились, коли повернутись?"></textarea><button class="ghost">Додати нотатку</button></form><div class="note-list">${lead.notes.map((note) => `<article class="note"><p>${escapeHtml(note.body)}</p><small>${escapeHtml(note.author)} · ${new Date(note.created_at).toLocaleString("uk-UA")}</small></article>`).join("") || '<p class="muted">Ще немає нотаток</p>'}</div></section>`;
