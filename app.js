@@ -23,6 +23,33 @@ const escapeHtml = (value = "") =>
   );
 const short = (value = "", size = 100) =>
   value.length > size ? `${value.slice(0, size).trim()}…` : value;
+const workflowOptions = {
+  outreach_status: [
+    "",
+    "Отписал",
+    "Не отписал",
+    "супер сайт, на кой хуй отписываать",
+  ],
+  owner: ["", "Саня", "Стёпа"],
+  result: [
+    "",
+    "Ожидаем ответ",
+    "Ответил",
+    "Диалог",
+    "Созвон",
+    "Кастдев назначен",
+    "Кастдев проведён",
+    "Предложение отправлено",
+    "Продающий созвон",
+    "Клиент",
+    "Отказ",
+    "Не актуально",
+    "Нет ответа",
+    "Чат очищен",
+    "Уточнить статус",
+  ],
+  qualification: ["", "🔥 Горячий", "Тёплый", "Холодный"],
+};
 const apiUrl = (path) => `${state.api.replace(/\/$/, "")}${path}`;
 async function request(path, options = {}) {
   const headers = {
@@ -191,19 +218,57 @@ function materialMarkup(lead) {
   if (!isExternalUrl(lead.attachment)) return '<span class="muted">Немає</span>';
   return `<a class="material-link" href="${escapeHtml(lead.attachment)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Фото / концепт ↗</a>`;
 }
+function workflowTone(field, value = "") {
+  const normalized = String(value).trim().toLowerCase();
+  if (field === "outreach_status") {
+    if (/^отписал$/.test(normalized)) return "sent";
+    if (/не отписал/.test(normalized)) return "pending";
+    return normalized ? "muted" : "empty";
+  }
+  if (field === "owner") {
+    if (/сан/.test(normalized)) return "sanya";
+    if (/ст[её]п/.test(normalized)) return "stepa";
+    return "empty";
+  }
+  if (field === "qualification") {
+    if (/горяч/.test(normalized)) return "hot";
+    if (/т[её]пл/.test(normalized)) return "warm";
+    if (/холод/.test(normalized)) return "cold";
+    return "empty";
+  }
+  if (/клиент/.test(normalized)) return "success";
+  if (/ответил|диалог/.test(normalized)) return "active";
+  if (/созвон|кастдев|предложение/.test(normalized)) return "progress";
+  if (/ожидаем|уточнить/.test(normalized)) return "pending";
+  if (/отказ/.test(normalized)) return "danger";
+  if (/не актуально|нет ответа|очищен/.test(normalized)) return "muted";
+  return normalized ? "active" : "empty";
+}
+function optionMarkup(options, selected) {
+  return options
+    .map(
+      (value) =>
+        `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(value || "Не выбрано")}</option>`,
+    )
+    .join("");
+}
+function quickSelect(lead, field, label) {
+  const value = String(lead[field] || "");
+  return `<label class="quick-field" title="${escapeHtml(label)}"><span>${escapeHtml(label)}</span><select class="quick-select" data-quick-field="${field}" data-lead-id="${lead.id}" data-tone="${workflowTone(field, value)}" aria-label="${escapeHtml(label)}">${optionMarkup(workflowOptions[field], value)}</select></label>`;
+}
 function leadRow(lead) {
   return `<div class="lead-row" data-lead="${lead.id}" role="button" tabindex="0">
-    <span class="lead-main"><b>${escapeHtml(lead.name)}</b><small>${escapeHtml(lead.business_info || lead.direction || "Без опису")}</small></span>
+    <span class="lead-main"><b>${escapeHtml(lead.name)}</b><small>${escapeHtml(lead.business_info || lead.direction || "Без опису")}</small>${quickSelect(lead, "qualification", "Квалификация")}</span>
     <span class="lead-source-cell">${sourceLinksMarkup(lead, 2)}</span>
     <span>${contactMarkup(lead)}</span>
-    <span>${tag(lead.outreach_status || "Не писали", statusClass(lead.outreach_status))}</span>
-    <span>${escapeHtml(lead.owner || "—")}</span>
-    <span class="lead-message">${escapeHtml(short(messagePreview(lead), 66))}</span>
+    <span>${quickSelect(lead, "outreach_status", "Отписал?")}</span>
+    <span>${quickSelect(lead, "owner", "Кто ведёт")}</span>
+    <span>${quickSelect(lead, "result", "Результат")}</span>
     <span>${materialMarkup(lead)}</span><span class="chevron">›</span>
   </div>`;
 }
 function tableHeader() {
-  return '<div class="lead-head"><span>Бізнес</span><span>OLX / Сайт</span><span>Контакт</span><span>Написали?</span><span>Хто веде</span><span>Текст / офер</span><span>Матеріали</span><span></span></div>';
+  return '<div class="lead-head"><span>Бизнес / квалификация</span><span>OLX / Сайт</span><span>Контакт</span><span>Отписал?</span><span>Кто ведёт</span><span>Результат</span><span>Материалы</span><span></span></div>';
 }
 function leadGroup(title, subtitle, leads, type) {
   if (!leads.length) return "";
@@ -320,6 +385,10 @@ const workflowFields = [
 ];
 function inputFor([key, label], lead) {
   const value = lead[key] || "";
+  const optionField = key === "status" ? "result" : key;
+  if (workflowOptions[optionField]) {
+    return `<label class="field"><span>${label}</span><select data-field="${key}" data-tone="${workflowTone(optionField, value)}">${optionMarkup(workflowOptions[optionField], value)}</select></label>`;
+  }
   const multiline = [
     "business_info",
     "personalization",
@@ -394,6 +463,7 @@ async function createLead() {
 }
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-quick-field]")) return;
   const row = event.target.closest("[data-lead]");
   if (row) return openLead(row.dataset.lead);
   const tab = event.target.closest("[data-tab]");
@@ -415,6 +485,27 @@ document.addEventListener("click", async (event) => {
       .querySelectorAll("[data-view]")
       .forEach((x) => x.classList.toggle("active", x === view));
     return loadLeads();
+  }
+});
+document.addEventListener("change", async (event) => {
+  const select = event.target.closest("[data-quick-field]");
+  if (!select) return;
+  const field = select.dataset.quickField;
+  const leadId = select.dataset.leadId;
+  const value = select.value;
+  const update = { [field]: value };
+  if (field === "result") update.status = value || "Новый";
+  select.disabled = true;
+  select.dataset.tone = workflowTone(field, value);
+  try {
+    await request(`/api/leads/${leadId}`, {
+      method: "PATCH",
+      body: JSON.stringify(update),
+    });
+    await refresh();
+  } catch (error) {
+    alert(error.message);
+    await loadLeads();
   }
 });
 document.addEventListener("keydown", (event) => {
