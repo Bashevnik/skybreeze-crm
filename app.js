@@ -727,12 +727,11 @@ document.addEventListener("change", async (event) => {
   }
 });
 document.addEventListener("keydown", (event) => {
-  if (
-    event.key === "Escape" &&
-    !$("#drawer").classList.contains("hidden") &&
-    !$("#settings-dialog").open
-  ) {
+  // The lead profile is a true modal surface: Escape must close it regardless
+  // of which field currently has focus (including a textarea or select).
+  if (event.key === "Escape" && !$("#drawer").classList.contains("hidden")) {
     event.preventDefault();
+    event.stopPropagation();
     closeLead();
     return;
   }
