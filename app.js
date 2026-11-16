@@ -1,7 +1,6 @@
 const state = {
   api: localStorage.getItem("crm-api-url") || window.CRM_API_BASE || "",
   sessionToken: sessionStorage.getItem("life-session-token") || "",
-  legacyToken: sessionStorage.getItem("crm-write-token") || "",
   user: null,
   authConfig: null,
   section: localStorage.getItem("life-active-section") || "dashboard",
@@ -61,7 +60,6 @@ async function request(path, options = {}) {
     ...(options.headers || {}),
   };
   if (state.sessionToken) headers["X-Session-Token"] = state.sessionToken;
-  else if (state.legacyToken) headers["X-CRM-Token"] = state.legacyToken;
   const res = await fetch(apiUrl(path), { ...options, headers });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}`);
@@ -87,7 +85,6 @@ function passwordField({ name, id, autocomplete, label, minLength = "", placehol
   return `<label>${label}<span class="password-field"><input id="${id}" name="${name}" type="password"${minLength ? ` minlength="${minLength}"` : ""} autocomplete="${autocomplete}"${placeholder ? ` placeholder="${escapeHtml(placeholder)}"` : ""}${value ? ` value="${escapeHtml(value)}"` : ""} required><button class="password-toggle" type="button" data-password-toggle="${id}" aria-controls="${id}" aria-pressed="false" title="Показати">Показати</button></span></label>`;
 }
 function authTemplate(mode = "login") {
-  const bootstrap = Boolean(state.authConfig?.bootstrap_required);
   const recoveryEnabled = Boolean(
     state.authConfig?.password_recovery_configured,
   );
@@ -112,16 +109,15 @@ function authTemplate(mode = "login") {
       <button class="auth-link" type="button" data-auth-mode="login">Назад до входу</button>
     </form>`;
   }
-  if (bootstrap || mode === "register") {
+  if (state.authConfig?.bootstrap_required || mode === "register") {
     return `<form class="auth-form" id="auth-register-form" autocomplete="on">
       <p class="eyebrow">ПЕРШИЙ ЗАПУСК</p><h1>Створи акаунт власника</h1>
-      <p>Існуючі ліди будуть безпечно прив’язані до цього акаунта. Ключ CRM потрібен тільки один раз для підтвердження власності.</p>
+      <p>Існуючі ліди будуть безпечно прив’язані до цього акаунта. Для входу потрібні лише email і пароль.</p>
       <label>Ім’я<input name="name" autocomplete="name" maxlength="120" required></label>
       <label>Email<input name="email" type="email" autocomplete="email" required></label>
       ${passwordField({ name: "password", id: "register-password", label: "Пароль", minLength: 12, autocomplete: "new-password" })}
-      ${passwordField({ name: "bootstrap_token", id: "crm-bootstrap-key", label: "Ключ первинного доступу CRM", autocomplete: "off", placeholder: "Не зберігається у браузері", value: state.legacyToken })}
       <button class="primary" type="submit">Створити захищений акаунт</button>
-      <small>Пароль — від 12 символів. Браузер запропонує зберегти саме пароль після створення акаунта. Ключ CRM не зберігається та буде видалений із сесії після входу.</small>
+      <small>Пароль — від 12 символів. Браузер запропонує зберегти його після створення акаунта.</small>
     </form>`;
   }
   return `<form class="auth-form" id="auth-login-form" autocomplete="on">
@@ -150,7 +146,6 @@ function hideAuthGate() {
 async function acceptSession(payload) {
   state.sessionToken = payload.session_token;
   state.user = payload.user || state.user;
-  state.legacyToken = "";
   sessionStorage.setItem("life-session-token", state.sessionToken);
   sessionStorage.removeItem("crm-write-token");
   renderAccount();
@@ -623,10 +618,8 @@ document.addEventListener("submit", async (event) => {
       return acceptSession(payload);
     }
     if (form.id === "auth-register-form") {
-      const bootstrapToken = String(data.get("bootstrap_token") || "").trim();
       const payload = await request("/api/auth/register", {
         method: "POST",
-        headers: { "X-CRM-Token": bootstrapToken },
         body: JSON.stringify({
           name: data.get("name"),
           email: data.get("email"),
@@ -779,14 +772,12 @@ $("#new-lead").onclick = () =>
   createLead().catch((error) => alert(error.message));
 $("#settings-btn").onclick = () => {
   $("#api-url").value = state.api;
-  $("#api-token").value = state.legacyToken;
   $("#settings-dialog").showModal();
 };
 $("#save-settings").onclick = () => {
   state.api = $("#api-url").value.trim();
-  state.legacyToken = $("#api-token").value.trim();
   localStorage.setItem("crm-api-url", state.api);
-  sessionStorage.setItem("crm-write-token", state.legacyToken);
+  sessionStorage.removeItem("crm-write-token");
   bootstrapApp();
 };
 window.SkyBreezeApp = { state, request, refreshCrm: refresh, escapeHtml };
