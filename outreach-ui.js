@@ -1,0 +1,149 @@
+(() => {
+  const $ = (s, root = document) => root.querySelector(s);
+  const esc = (v = "") => String(v).replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[c]);
+  const app = () => window.SkyBreezeApp;
+  const api = (path, options) => app().request(`/api/outreach${path}`, options);
+  const state = { active: false, route: "overview", params: new URLSearchParams(), meta: null, selected: null, toastTimer: null };
+  const titles = { overview: "Огляд", leads: "Усі ліди", pipeline: "Воронка", campaigns: "Кампанії", tasks: "Завдання", clients: "Клієнти", team: "Команда", activity: "Історія", analytics: "Аналітика" };
+  const can = (role) => ({ viewer: 0, member: 1, manager: 2, admin: 3 }[state.meta?.role || "viewer"] >= ({ viewer: 0, member: 1, manager: 2, admin: 3 }[role] || 0));
+  const date = (v) => v ? new Intl.DateTimeFormat("uk-UA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(v)) : "—";
+  const shortDate = (v) => v ? new Intl.DateTimeFormat("uk-UA", { day: "numeric", month: "short" }).format(new Date(v)) : "—";
+  const go = (route, params = new URLSearchParams()) => { location.hash = `#/crm/${route}${params.toString() ? `?${params}` : ""}`; };
+  const formObject = (form) => Object.fromEntries(new FormData(form).entries());
+  function flash(message, tone = "ok") {
+    let node = $("#outreach-toast");
+    if (!node) { node = document.createElement("div"); node.id = "outreach-toast"; document.body.append(node); }
+    node.textContent = message; node.dataset.tone = tone; node.classList.add("visible");
+    clearTimeout(state.toastTimer); state.toastTimer = setTimeout(() => node.classList.remove("visible"), 3600);
+  }
+  function roleLabel(role) { return ({ admin: "Адміністратор", manager: "Менеджер", member: "Учасник", viewer: "Перегляд" })[role] || role; }
+  function currentRoute() {
+    const match = location.hash.match(/^#\/crm\/([^?]+)(?:\?(.*))?$/);
+    state.route = match?.[1] || "overview"; state.params = new URLSearchParams(match?.[2] || "");
+    if (!titles[state.route]) { state.route = "overview"; state.params = new URLSearchParams(); }
+  }
+  function nav() {
+    const nav = $("#crm-nav"); if (!nav) return;
+    nav.hidden = false;
+    nav.innerHTML = [
+      ["overview", "◌", "Огляд"], ["leads", "⌘", "Усі ліди"], ["pipeline", "↗", "Воронка"], ["campaigns", "◫", "Кампанії"], ["tasks", "✓", "Завдання"], ["clients", "◉", "Клієнти"], ["team", "♙", "Команда"], ["activity", "◷", "Історія"], ["analytics", "⌁", "Аналітика"],
+    ].map(([key, icon, label]) => `<a class="nav-item outreach-nav ${state.route === key ? "active" : ""}" href="#/crm/${key}"><span>${icon}</span>${label}</a>`).join("");
+  }
+  function shell(eyebrow, heading, description, content, actions = "") {
+    const old = $("#crm-view"); old.classList.remove("hidden"); $("#life-view")?.classList.add("hidden");
+    old.innerHTML = `<header class="outreach-topbar"><div><p class="eyebrow">${esc(eyebrow)}</p><div class="outreach-breadcrumb"><a href="#/crm/overview">CRM</a><span>/</span><b>${esc(heading)}</b></div><h1>${esc(heading)}</h1><p>${esc(description)}</p></div><div class="outreach-actions">${actions}</div></header><div id="outreach-content">${content}</div>`;
+    nav();
+  }
+  const metrics = (items) => `<section class="outreach-metrics">${items.map((x) => `<article><span>${esc(x.label)}</span><strong>${esc(x.value)}</strong><small>${esc(x.note || "")}</small></article>`).join("")}</section>`;
+  const empty = (title, text, action = "") => `<section class="outreach-empty"><b>${esc(title)}</b><p>${esc(text)}</p>${action}</section>`;
+  const teamOptions = (selected = "") => (state.meta?.team || []).map((u) => `<option value="${esc(u.id)}" ${u.id === selected ? "selected" : ""}>${esc(u.name || u.email)}</option>`).join("");
+  const stageLabel = (stage) => ({ new: "Нові", working: "В роботі", contacted: "Написали", positive: "Позитив", meeting: "Зустріч", proposal: "Пропозиція", won: "Клієнти", lost: "Втрачено" })[stage] || stage;
+  function leadCard(lead) {
+    const contact = [lead.phone, lead.telegram ? `@${String(lead.telegram).replace(/^@/, "")}` : ""].filter(Boolean).join(" · ") || "Контакт не додано";
+    return `<article class="outreach-row" data-open-lead="${lead.id}"><div><b>${esc(lead.name || "Без назви")}</b><small>${esc(lead.direction || lead.source || "Без категорії")}</small></div><div><span class="outreach-pill">${esc(lead.status || lead.outreach_status || "Новий")}</span><small>${esc(lead.result || "Без результату")}</small></div><div><b>${esc(contact)}</b><small>${lead.link ? `<a href="${esc(lead.link)}" target="_blank" rel="noreferrer">Відкрити джерело ↗</a>` : "Джерело не додано"}</small></div><div><small>Автор: ${esc(lead.created_by?.name || "невідомо")}</small><small>Відповідальний: ${esc(lead.assigned_to?.name || "не призначено")}</small></div><span class="outreach-chevron">›</span></article>`;
+  }
+  async function overview() {
+    const [data, tasks] = await Promise.all([api("/overview"), api("/tasks?scope=overdue")]);
+    shell("OUTREACH CRM · СПІЛЬНА БАЗА", "Огляд", "Операційна картина без підміни фактів: активність, воронка та наступні дії.", `${metrics([{ label: "Ліди у воронці", value: data.total, note: "за обраний 7-денний період" }, { label: "Клієнти", value: data.clients, note: "спільна база" }, { label: "Прострочені фоллоуапи", value: data.overdue_follow_ups, note: "потребують дії" }, { label: "Активні кампанії", value: data.active_campaigns, note: "без автоспаму" }])}<section class="outreach-grid two"><article class="outreach-panel"><div class="panel-head"><div><p class="eyebrow">ВОРОНКА</p><h2>Поточний розподіл</h2></div><a href="#/crm/pipeline">Відкрити →</a></div><div class="funnel-list">${(data.stages || []).map((x) => `<a href="#/crm/leads?stage=${x.key}"><span>${stageLabel(x.key)}</span><i><b style="width:${data.total ? Math.max(4, x.conversion) : 0}%"></b></i><strong>${x.value}</strong></a>`).join("")}</div></article><article class="outreach-panel"><div class="panel-head"><div><p class="eyebrow">ФОЛЛОУАПИ</p><h2>Прострочені</h2></div><a href="#/crm/tasks?scope=overdue">Усі →</a></div>${tasks.tasks?.length ? `<div class="task-list">${tasks.tasks.slice(0, 6).map(taskRow).join("")}</div>` : empty("Немає прострочених", "Система не створює задач сама — тут лише фактичні записи.")}</article></section>`, `<a class="ghost outreach-export" href="${app().state.api.replace(/\/$/, "")}/api/outreach/export.csv" data-outreach-export>Експорт CSV</a><button class="primary" data-new-lead>+ Новий лід</button>`);
+  }
+  function filterForm() {
+    const p = state.params;
+    return `<form class="outreach-filters" data-lead-filter><label class="outreach-search">⌕<input name="q" value="${esc(p.get("q") || "")}" placeholder="Назва, телефон, Telegram, нотатка"></label><select name="stage"><option value="">Усі етапи</option>${["new", "working", "contacted", "positive", "meeting", "proposal", "won", "lost"].map((x) => `<option value="${x}" ${p.get("stage") === x ? "selected" : ""}>${stageLabel(x)}</option>`).join("")}</select><select name="assigned_to"><option value="">Усі відповідальні</option>${teamOptions(p.get("assigned_to") || "")}</select><select name="source"><option value="">Усі джерела</option>${(state.meta?.sources || []).map((x) => `<option value="${esc(x)}" ${p.get("source") === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select><button class="ghost">Застосувати</button><a class="outreach-clear" href="#/crm/leads">Очистити</a></form>`;
+  }
+  async function leads() {
+    const query = new URLSearchParams(state.params); query.set("page_size", "60"); const data = await api(`/leads?${query}`);
+    shell("БАЗА", "Усі ліди", "Спільна база. Старі записи не приписані нікому: авторство в них лишається невідомим.", `${filterForm()}<section class="outreach-list"><div class="outreach-list-head"><span>Бізнес</span><span>Статус / результат</span><span>Контакт / джерело</span><span>Відповідальність</span><span></span></div>${data.leads.length ? data.leads.map(leadCard).join("") : empty("Лідів за цим фільтром немає", "Зміни фільтри або додай вручну.")}</section><p class="outreach-count">Показано ${data.leads.length} із ${data.total}</p>`, `<button class="primary" data-new-lead>+ Новий лід</button>`);
+  }
+  async function pipeline() {
+    const keys = ["new", "working", "contacted", "positive", "meeting", "proposal", "won", "lost"], rows = await Promise.all(keys.map((stage) => api(`/leads?stage=${stage}&page_size=12`).then((x) => [stage, x])));
+    shell("ПРОЦЕС", "Воронка", "Етап — це стан роботи, а не оцінка якості ліда. Зміни фіксуються в історії.", `<section class="pipeline-board">${rows.map(([stage, data]) => `<article class="pipeline-column"><header><b>${stageLabel(stage)}</b><span>${data.total}</span></header><div>${data.leads.map((lead) => `<button data-open-lead="${lead.id}" class="pipeline-lead"><b>${esc(lead.name)}</b><small>${esc(lead.result || lead.status || "Без результату")}</small></button>`).join("") || "<p>Порожньо</p>"}</div><a href="#/crm/leads?stage=${stage}">Всі →</a></article>`).join("")}</section>`);
+  }
+  function taskRow(task) { return `<article class="task-row"><div><b>${esc(task.lead_name || task.client_name || "Без зв’язку")}</b><small>${esc(task.task_type)} · ${shortDate(task.due_at)} · ${esc(task.assigned_name || "не призначено")}</small>${task.comment ? `<small>${esc(task.comment)}</small>` : ""}</div>${task.status === "open" ? `<button class="ghost" data-task-done="${task.id}">Готово</button>` : `<span class="outreach-pill">${esc(task.status)}</span>`}</article>`; }
+  async function tasks() { const scope = state.params.get("scope") || "upcoming", data = await api(`/tasks?scope=${scope}`); shell("ФОЛЛОУАПИ", "Завдання", "Кожна дія має зв’язок із лідом або клієнтом та відповідального. Відправка повідомлень тут не автоматизується.", `<div class="outreach-subnav">${[["upcoming", "Майбутні"], ["today", "Сьогодні"], ["overdue", "Прострочені"]].map(([x, label]) => `<a class="${scope === x ? "active" : ""}" href="#/crm/tasks?scope=${x}">${label}</a>`).join("")}</div><section class="outreach-panel task-list">${data.tasks.length ? data.tasks.map(taskRow).join("") : empty("Задач немає", "Додай фоллоуап із картки ліда або клієнта.")}</section>`, `<button class="primary" data-new-task>+ Завдання</button>`); }
+  async function clients() { const q = state.params.get("q") || "", data = await api(`/clients?q=${encodeURIComponent(q)}`); shell("БАЗА КЛІЄНТІВ", "Клієнти", "Клієнт — окрема сутність; кілька лідів можуть належати одному клієнту.", `<form class="outreach-filters" data-client-filter><label class="outreach-search">⌕<input name="q" value="${esc(q)}" placeholder="Назва, телефон, email або сайт"></label><button class="ghost">Шукати</button></form><section class="client-grid">${data.clients.length ? data.clients.map((client) => `<button class="client-card" data-open-client="${client.id}"><span>${client.favorite ? "★" : "◌"} ${esc(client.client_status)}</span><b>${esc(client.name)}</b><small>${esc([client.contact_name, client.phone, client.city].filter(Boolean).join(" · ") || "Без контакту")}</small><small>${client.lead_count} пов’язаних лідів · ${esc(client.owner_name || "без відповідального")}</small></button>`).join("") : empty("Клієнтів поки немає", "Конвертуй лід після згоди або додай клієнта вручну.")}</section>`, `<button class="primary" data-new-client>+ Клієнт</button>`); }
+  async function campaigns() { const data = await api("/campaigns"); shell("КАМПАНІЇ", "Кампанії", "Групування лідів для контролю процесу. Воно не надсилає повідомлення та не дублює контакти.", `<section class="campaign-grid">${data.campaigns.length ? data.campaigns.map((c) => `<button class="campaign-card" data-open-campaign="${c.id}"><span class="outreach-pill">${esc(c.status)}</span><b>${esc(c.name)}</b><small>${esc(c.goal || "Мета не додана")}</small><footer><span>${c.lead_count} лідів</span><span>${c.response_count || 0} відповідей</span><span>${esc(c.owner_name || "—")}</span></footer></button>`).join("") : empty("Кампаній ще немає", "Створи кампанію й додай до неї наявні ліди без повторного імпорту.")}</section>`, can("manager") ? `<button class="primary" data-new-campaign>+ Кампанія</button>` : ""); }
+  async function team() { if (!can("manager")) return denied(); const [teamData, stats] = await Promise.all([api("/team"), api("/team/activity")]), by = Object.fromEntries((stats.users || []).map((x) => [x.user.id, x])); shell("КОМАНДА", "Команда", "Автор імпорту й відповідальний — різні поля. Для старих лідів авторство не вигадується.", `<section class="outreach-team">${teamData.team.map((u) => { const x = by[u.id] || {}; return `<article><div><b>${esc(u.name)}</b><small>${esc(u.email)}</small></div><span class="outreach-pill">${roleLabel(u.role)}</span><dl><div><dt>Створено</dt><dd>${x.month || 0}</dd></div><div><dt>В роботі</dt><dd>${x.in_work || 0}</dd></div><div><dt>Відповіді</dt><dd>${x.replies || 0}</dd></div><div><dt>Виграно</dt><dd>${x.won || 0}</dd></div></dl>${can("admin") ? `<select data-team-role="${u.id}"><option value="admin" ${u.role === "admin" ? "selected" : ""}>Адміністратор</option><option value="manager" ${u.role === "manager" ? "selected" : ""}>Менеджер</option><option value="member" ${u.role === "member" ? "selected" : ""}>Учасник</option><option value="viewer" ${u.role === "viewer" ? "selected" : ""}>Перегляд</option></select>` : ""}</article>`; }).join("")}</section><p class="outreach-count">Старих лідів без встановленого автора: ${stats.unknown_created}</p>`); }
+  async function activity() { if (!can("manager")) return denied(); const data = await api("/activity"); shell("АУДИТ", "Історія", "Незмінюваний журнал важливих змін. Він потрібен для розбору процесу, а не для оцінювання людей.", `<section class="outreach-panel activity-list">${data.activity.length ? data.activity.map((a) => `<article><time>${date(a.created_at)}</time><div><b>${esc(a.actor_name || "Система / старі дані")}</b><p>${esc(a.action)} · ${esc(a.object_type)}</p></div></article>`).join("") : empty("Подій поки немає", "Нові зміни з’являтимуться тут.")}</section>`); }
+  async function analytics() { const data = await api("/analytics/funnel"); shell("АНАЛІТИКА", "Аналітика", "Воронка рахується по доступних даних і вибраному періоду за Києвом. Це не прогноз.", `${metrics([{ label: "Лідів", value: data.total, note: `${data.range.from} — ${data.range.to}` }, ...data.stages.filter((x) => ["contacted", "positive", "won"].includes(x.key)).map((x) => ({ label: stageLabel(x.key), value: x.value, note: `${x.conversion}% від вибірки` }))])}<section class="outreach-panel"><div class="funnel-list">${data.stages.map((x) => `<div><span>${stageLabel(x.key)}</span><i><b style="width:${data.total ? Math.max(3, x.conversion) : 0}%"></b></i><strong>${x.value} <small>${x.conversion}%</small></strong></div>`).join("")}</div></section>`); }
+  function denied() { shell("ДОСТУП", "Недостатньо прав", "Твоя роль дозволяє переглядати доступні дані, але не відкривати цей розділ.", empty("Доступ обмежений", "Звернись до адміністратора команди, якщо потрібна інша роль.")); }
+  async function downloadExport(event) {
+    event.preventDefault();
+    const base = app().state.api.replace(/\/$/, "");
+    const response = await fetch(`${base}/api/outreach/export.csv`, { headers: { "X-Session-Token": app().state.sessionToken } });
+    if (!response.ok) throw new Error("Експорт не вдалося сформувати");
+    const href = URL.createObjectURL(await response.blob()), link = document.createElement("a");
+    link.href = href; link.download = "outreach-leads.csv"; link.click(); setTimeout(() => URL.revokeObjectURL(href), 1000);
+  }
+  function drawer(title, content) {
+    $("#drawer")?.classList.add("hidden"); let d = $("#outreach-drawer");
+    if (!d) { d = document.createElement("aside"); d.id = "outreach-drawer"; d.className = "outreach-drawer"; document.body.append(d); }
+    d.innerHTML = `<header><div><p class="eyebrow">${esc(state.route.toUpperCase())}</p><h2>${esc(title)}</h2></div><button data-close-outreach aria-label="Закрити">×</button></header><div class="outreach-drawer-body">${content}</div>`; d.classList.add("open");
+  }
+  function closeDrawer() { $("#outreach-drawer")?.classList.remove("open"); state.selected = null; }
+  async function openLead(id) {
+    const lead = await api(`/leads/${id}`); state.selected = { type: "lead", id };
+    drawer(lead.name || "Без назви", `<form data-save-lead="${lead.id}" class="detail-form"><section class="detail-grid"><div><label>Статус<select name="status">${["Новий", "В роботі", "Написали", "Відповів", "Діалог", "Зустріч", "Пропозиція", "Клієнт", "Відмова"].map((x) => `<option ${lead.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></label><label>Результат<input name="result" value="${esc(lead.result || "")}"></label>${can("manager") ? `<label>Відповідальний<select name="assigned_to_user_id"><option value="">Не призначено</option>${teamOptions(lead.assigned_to_user_id || "")}</select></label>` : ""}</div><div><p><b>Телефон:</b> ${esc(lead.phone || "—")}</p><p><b>Telegram:</b> ${esc(lead.telegram || "—")}</p><p><b>Автор:</b> ${esc(lead.created_by?.name || "невідомо")}</p>${lead.link ? `<a href="${esc(lead.link)}" target="_blank" rel="noreferrer">Відкрити сайт / профіль ↗</a>` : ""}</div></section><label>Наступна дія<input name="next_step" value="${esc(lead.next_step || "")}" placeholder="Що саме зробити далі"></label><label>Коментар<textarea name="comment" rows="4">${esc(lead.comment || "")}</textarea></label><button class="primary">Зберегти зміни</button></form><section class="detail-section"><div class="panel-head"><h3>Нотатки</h3><button class="ghost" data-convert-lead="${lead.id}">Конвертувати в клієнта</button></div><form data-add-note="${lead.id}" class="inline-form"><input name="body" placeholder="Додати нотатку без втрати історії" required><button class="ghost">Додати</button></form>${lead.notes?.map((n) => `<article class="note"><b>${esc(n.actor_name || n.author || "—")}</b><p>${esc(n.body)}</p><small>${date(n.created_at)}</small></article>`).join("") || "<p class=\"quiet\">Нотаток поки немає.</p>"}</section><section class="detail-section"><h3>Фоллоуапи</h3>${lead.tasks?.map(taskRow).join("") || "<p class=\"quiet\">Немає задач.</p>"}<button class="ghost" data-new-task data-task-lead="${lead.id}">+ Запланувати дію</button></section><section class="detail-section"><h3>Історія</h3>${lead.activities?.slice(0, 10).map((x) => `<p class="history-line">${date(x.created_at)} · ${esc(x.actor_name || "система")} · ${esc(x.action)}</p>`).join("") || "<p class=\"quiet\">Немає нової історії.</p>"}</section>`);
+  }
+  async function openClient(id) { const c = await api(`/clients/${id}`); state.selected = { type: "client", id }; drawer(c.name, `<section class="detail-grid"><div><p><b>${esc(c.client_status)}</b></p><p>${esc(c.description || "Опис не додано")}</p><p>${esc([c.phone, c.email, c.telegram].filter(Boolean).join(" · ") || "Контакту немає")}</p>${c.website ? `<a href="${esc(c.website)}" target="_blank" rel="noreferrer">Відкрити сайт ↗</a>` : ""}</div><div><p><b>Відповідальний:</b> ${esc(c.owner_name || "—")}</p><p><b>Дохід:</b> ${esc(c.total_revenue || 0)}</p><p><b>Джерело:</b> ${esc(c.source || "—")}</p></div></section><button class="ghost" data-favorite-client="${c.id}" data-value="${c.favorite ? "false" : "true"}">${c.favorite ? "Прибрати з обраного" : "Додати в обране"}</button><section class="detail-section"><h3>Пов’язані ліди</h3>${c.leads?.map((l) => `<button class="link-row" data-open-lead="${l.id}">${esc(l.name)} <span>${esc(l.result || l.status || "")}</span></button>`).join("") || "<p class=\"quiet\">Лідів немає.</p>"}</section><section class="detail-section"><h3>Задачі</h3>${c.tasks?.map(taskRow).join("") || "<p class=\"quiet\">Задач немає.</p>"}<button class="ghost" data-new-task data-task-client="${c.id}">+ Додати задачу</button></section>`); }
+  async function openCampaign(id) { const c = await api(`/campaigns/${id}`); state.selected = { type: "campaign", id }; drawer(c.name, `<p>${esc(c.goal || "Мета не додана")}</p><form data-save-campaign="${c.id}" class="detail-form"><label>Статус<select name="status">${["draft", "active", "paused", "completed", "archived"].map((x) => `<option ${c.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>${can("manager") ? `<button class="primary">Зберегти статус</button>` : ""}</form><section class="detail-section"><h3>Ліди (${c.leads?.length || 0})</h3>${c.leads?.map((lead) => `<button class="link-row" data-open-lead="${lead.id}">${esc(lead.name)} <span>${esc(lead.result || lead.status || "")}</span></button>`).join("") || "<p class=\"quiet\">Лідів ще не додано.</p>"}</section>`); }
+  function modal(title, inner) { let m = $("#outreach-modal"); if (!m) { m = document.createElement("dialog"); m.id = "outreach-modal"; document.body.append(m); } m.innerHTML = `<div class="outreach-modal"><button class="modal-close" type="button" data-close-modal aria-label="Закрити">×</button><p class="eyebrow">CRM</p><h2>${esc(title)}</h2>${inner}</div>`; m.showModal(); }
+  function newLead() { modal("Новий лід", `<form data-create-lead class="detail-form"><label>Назва бізнесу<input name="name" required></label><label>Телефон<input name="phone"></label><label>Telegram<input name="telegram"></label><label>Сайт / профіль<input name="link" type="url"></label><label>Напрям<input name="direction"></label><label>Джерело<input name="source"></label>${can("manager") ? `<label>Відповідальний<select name="assigned_to_user_id">${teamOptions(app().state.user?.id || "")}</select></label>` : ""}<button class="primary">Створити лід</button></form>`); }
+  function newClient() { modal("Новий клієнт", `<form data-create-client class="detail-form"><label>Назва<input name="name" required></label><label>Контактна особа<input name="contact_name"></label><label>Телефон<input name="phone"></label><label>Email<input name="email" type="email"></label><label>Сайт<input name="website" type="url"></label><label>Статус<select name="client_status"><option value="lead">Лід</option><option value="contacted">Контакт</option><option value="proposal">Пропозиція</option><option value="active">Активний</option></select></label><button class="primary">Створити клієнта</button></form>`); }
+  function newTask(origin = {}) { modal("Нове завдання", `<form data-create-task class="detail-form"><input type="hidden" name="lead_id" value="${esc(origin.lead_id || "")}"><input type="hidden" name="client_id" value="${esc(origin.client_id || "")}"><label>Тип<select name="task_type"><option value="follow_up">Фоллоуап</option><option value="write">Написати</option><option value="call">Подзвонити</option><option value="proposal">Пропозиція</option><option value="meeting">Зустріч</option></select></label><label>Дата і час<input name="due_at" type="datetime-local" required></label><label>Пріоритет<select name="priority"><option value="normal">Звичайний</option><option value="high">Високий</option><option value="urgent">Терміновий</option></select></label>${can("manager") ? `<label>Відповідальний<select name="assigned_to_user_id">${teamOptions(app().state.user?.id || "")}</select></label>` : ""}<label>Коментар<textarea name="comment"></textarea></label><button class="primary">Створити</button></form>`); }
+  function newCampaign() { modal("Нова кампанія", `<form data-create-campaign class="detail-form"><label>Назва<input name="name" required></label><label>Мета<textarea name="goal"></textarea></label><label>Статус<select name="status"><option value="draft">Чернетка</option><option value="active">Активна</option><option value="paused">Пауза</option></select></label><button class="primary">Створити кампанію</button></form>`); }
+  async function render() {
+    if (!state.active || !app()?.state?.user) return;
+    currentRoute();
+    try {
+      state.meta ||= await api("/meta");
+      const method = ({ overview, leads, pipeline, campaigns, tasks, clients, team, activity, analytics })[state.route];
+      await method();
+    } catch (error) {
+      shell("ПОМИЛКА", titles[state.route] || "CRM", "Дані не були змінені.", empty("Не вдалося завантажити", error.message, `<button class="primary" data-outreach-retry>Спробувати ще раз</button>`));
+    }
+  }
+  document.addEventListener("submit", async (event) => {
+    const form = event.target;
+    if (!form.matches("[data-lead-filter],[data-client-filter],[data-save-lead],[data-add-note],[data-create-lead],[data-create-client],[data-create-task],[data-create-campaign],[data-save-campaign]")) return;
+    event.preventDefault(); const data = formObject(form); const busy = $("button[type=submit]", form); if (busy) busy.disabled = true;
+    try {
+      if (form.matches("[data-lead-filter]")) { const q = new URLSearchParams(); Object.entries(data).forEach(([k, v]) => v && q.set(k, v)); return go("leads", q); }
+      if (form.matches("[data-client-filter]")) return go("clients", data.q ? new URLSearchParams({ q: data.q }) : new URLSearchParams());
+      if (form.dataset.saveLead) { await api(`/leads/${form.dataset.saveLead}`, { method: "PATCH", body: JSON.stringify(data) }); flash("Лід оновлено"); return openLead(form.dataset.saveLead); }
+      if (form.dataset.addNote) { await api(`/leads/${form.dataset.addNote}/notes`, { method: "POST", body: JSON.stringify(data) }); flash("Нотатку додано"); return openLead(form.dataset.addNote); }
+      if (form.matches("[data-create-lead]")) { const lead = await api("/leads", { method: "POST", body: JSON.stringify(data) }); $("#outreach-modal")?.close(); flash("Лід створено"); return openLead(lead.id); }
+      if (form.matches("[data-create-client]")) { const client = await api("/clients", { method: "POST", body: JSON.stringify(data) }); $("#outreach-modal")?.close(); flash("Клієнта створено"); return openClient(client.id); }
+      if (form.matches("[data-create-task]")) { await api("/tasks", { method: "POST", body: JSON.stringify(data) }); $("#outreach-modal")?.close(); flash("Завдання створено"); return state.selected?.type === "lead" ? openLead(state.selected.id) : state.selected?.type === "client" ? openClient(state.selected.id) : render(); }
+      if (form.matches("[data-create-campaign]")) { const campaign = await api("/campaigns", { method: "POST", body: JSON.stringify(data) }); $("#outreach-modal")?.close(); flash("Кампанію створено"); return openCampaign(campaign.id); }
+      if (form.dataset.saveCampaign) { await api(`/campaigns/${form.dataset.saveCampaign}`, { method: "PATCH", body: JSON.stringify(data) }); flash("Статус кампанії оновлено"); return openCampaign(form.dataset.saveCampaign); }
+    } catch (error) { flash(error.message, "error"); if (busy) busy.disabled = false; }
+  });
+  document.addEventListener("click", async (event) => {
+    const el = event.target.closest("[data-open-lead],[data-open-client],[data-open-campaign],[data-close-outreach],[data-close-modal],[data-new-lead],[data-new-client],[data-new-task],[data-new-campaign],[data-task-done],[data-convert-lead],[data-favorite-client],[data-outreach-retry],[data-outreach-export]");
+    if (!el) return;
+    try {
+      if (el.dataset.openLead) return openLead(el.dataset.openLead);
+      if (el.dataset.openClient) return openClient(el.dataset.openClient);
+      if (el.dataset.openCampaign) return openCampaign(el.dataset.openCampaign);
+      if (el.hasAttribute("data-close-outreach")) return closeDrawer();
+      if (el.hasAttribute("data-close-modal")) return $("#outreach-modal")?.close();
+      if (el.hasAttribute("data-outreach-export")) return downloadExport(event);
+      if (el.hasAttribute("data-new-lead")) return newLead();
+      if (el.hasAttribute("data-new-client")) return newClient();
+      if (el.hasAttribute("data-new-task")) return newTask({ lead_id: el.dataset.taskLead, client_id: el.dataset.taskClient });
+      if (el.hasAttribute("data-new-campaign")) return newCampaign();
+      if (el.dataset.taskDone) { await api(`/tasks/${el.dataset.taskDone}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) }); flash("Завдання виконано"); return state.selected?.type === "lead" ? openLead(state.selected.id) : state.selected?.type === "client" ? openClient(state.selected.id) : render(); }
+      if (el.dataset.convertLead) { const client = await api(`/leads/${el.dataset.convertLead}/convert`, { method: "POST", body: JSON.stringify({}) }); flash("Лід пов’язано з клієнтом"); return openClient(client.id); }
+      if (el.dataset.favoriteClient) { await api(`/clients/${el.dataset.favoriteClient}/favorite`, { method: "POST", body: JSON.stringify({ favorite: el.dataset.value === "true" }) }); return openClient(el.dataset.favoriteClient); }
+      if (el.hasAttribute("data-outreach-retry")) return render();
+    } catch (error) { flash(error.message, "error"); }
+  });
+  document.addEventListener("change", async (event) => {
+    const el = event.target; if (!el.matches("[data-team-role]")) return;
+    try { await api(`/team/${el.dataset.teamRole}`, { method: "PATCH", body: JSON.stringify({ access_role: el.value }) }); flash("Роль оновлено"); team(); } catch (error) { flash(error.message, "error"); }
+  });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(); });
+  window.addEventListener("hashchange", () => { if (location.hash.startsWith("#/crm")) render(); });
+  window.SkyBreezeOutreach = { activate: () => { state.active = true; if (!location.hash.startsWith("#/crm/")) history.replaceState(null, "", "#/crm/overview"); return render(); }, refresh: render, go };
+  queueMicrotask(() => { if (app()?.state?.user && app().state.section === "crm") window.SkyBreezeOutreach.activate(); });
+})();
