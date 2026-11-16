@@ -1,6 +1,10 @@
 const state = {
   api: localStorage.getItem("crm-api-url") || window.CRM_API_BASE || "",
-  token: sessionStorage.getItem("crm-write-token") || "",
+  sessionToken: sessionStorage.getItem("life-session-token") || "",
+  legacyToken: sessionStorage.getItem("crm-write-token") || "",
+  user: null,
+  authConfig: null,
+  section: localStorage.getItem("life-active-section") || "dashboard",
   tab: "all",
   view: "table",
   page: 1,
@@ -56,11 +60,118 @@ async function request(path, options = {}) {
     "Content-Type": "application/json",
     ...(options.headers || {}),
   };
-  if (state.token) headers["X-CRM-Token"] = state.token;
+  if (state.sessionToken) headers["X-Session-Token"] = state.sessionToken;
+  else if (state.legacyToken) headers["X-CRM-Token"] = state.legacyToken;
   const res = await fetch(apiUrl(path), { ...options, headers });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}`);
   return payload;
+}
+function authMessage(message = "", tone = "") {
+  const element = $("#auth-message");
+  if (!element) return;
+  element.textContent = message;
+  element.dataset.tone = tone;
+}
+function renderAccount() {
+  const button = $("#account-btn");
+  if (!button) return;
+  const user = state.user;
+  button.hidden = false;
+  button.textContent = user
+    ? `${user.name || user.email} · Вийти`
+    : "Увійти";
+  button.title = user ? `Вийти з ${user.email}` : "Увійти";
+}
+function authTemplate(mode = "login") {
+  const bootstrap = Boolean(state.authConfig?.bootstrap_required);
+  const recoveryEnabled = Boolean(
+    state.authConfig?.password_recovery_configured,
+  );
+  const resetToken = new URLSearchParams(window.location.search).get("reset");
+  if (resetToken) {
+    return `<form class="auth-form" id="auth-reset-form">
+      <p class="eyebrow">БЕЗПЕКА</p><h1>Новий пароль</h1>
+      <p>Створи новий пароль для свого акаунта.</p>
+      <label>Новий пароль<input name="password" type="password" minlength="12" autocomplete="new-password" required></label>
+      <label>Повтори пароль<input name="password_confirm" type="password" minlength="12" autocomplete="new-password" required></label>
+      <button class="primary" type="submit">Зберегти новий пароль</button>
+      <button class="auth-link" type="button" data-auth-mode="login">Повернутись до входу</button>
+    </form>`;
+  }
+  if (mode === "forgot") {
+    return `<form class="auth-form" id="auth-forgot-form">
+      <p class="eyebrow">ВІДНОВЛЕННЯ ДОСТУПУ</p><h1>Посилання для входу</h1>
+      <p>${recoveryEnabled ? "Надішлемо посилання для зміни пароля." : "Відновлення через email ще не підключено. Скористайся обліковим записом власника."}</p>
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <button class="primary" type="submit" ${recoveryEnabled ? "" : "disabled"}>Надіслати посилання</button>
+      <button class="auth-link" type="button" data-auth-mode="login">Назад до входу</button>
+    </form>`;
+  }
+  if (bootstrap || mode === "register") {
+    return `<form class="auth-form" id="auth-register-form">
+      <p class="eyebrow">ПЕРШИЙ ЗАПУСК</p><h1>Створи акаунт власника</h1>
+      <p>Існуючі ліди будуть безпечно прив’язані до цього акаунта. Ключ CRM потрібен тільки один раз для підтвердження власності.</p>
+      <label>Ім’я<input name="name" autocomplete="name" maxlength="120" required></label>
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <label>Пароль<input name="password" type="password" minlength="12" autocomplete="new-password" required></label>
+      <label>Ключ доступу поточної CRM<input name="bootstrap_token" type="password" autocomplete="off" placeholder="Не зберігається у браузері" value="${escapeHtml(state.legacyToken)}" required></label>
+      <button class="primary" type="submit">Створити захищений акаунт</button>
+      <small>Пароль — від 12 символів. Ключ CRM буде видалено з сесії після успішного входу.</small>
+    </form>`;
+  }
+  return `<form class="auth-form" id="auth-login-form">
+    <p class="eyebrow">SKYBREEZE · ОСОБИСТА CRM</p><h1>Радий бачити</h1>
+    <p>Увійди, щоб побачити лише свої дані та продовжити роботу.</p>
+    <label>Email<input name="email" type="email" autocomplete="email" required></label>
+    <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Увійти</button>
+    <button class="auth-link" type="button" data-auth-mode="forgot">Не пам’ятаю пароль</button>
+  </form>`;
+}
+function showAuthGate({ mode = "login", message = "", tone = "" } = {}) {
+  const gate = $("#auth-gate");
+  if (!gate) return;
+  document.body.classList.add("auth-open");
+  gate.hidden = false;
+  gate.innerHTML = `<div class="auth-card"><div class="auth-mark">SB</div>${authTemplate(mode)}<p id="auth-message" class="auth-message" data-tone="${escapeHtml(tone)}"></p></div>`;
+  authMessage(message, tone);
+  gate.querySelector("input")?.focus();
+}
+function hideAuthGate() {
+  document.body.classList.remove("auth-open");
+  $("#auth-gate").hidden = true;
+}
+async function acceptSession(payload) {
+  state.sessionToken = payload.session_token;
+  state.user = payload.user || state.user;
+  state.legacyToken = "";
+  sessionStorage.setItem("life-session-token", state.sessionToken);
+  sessionStorage.removeItem("crm-write-token");
+  renderAccount();
+  hideAuthGate();
+  await refresh();
+  window.SkyBreezeLife?.activate(state.section);
+}
+async function bootstrapApp() {
+  try {
+    const [session, config] = await Promise.all([
+      request("/api/auth/session"),
+      request("/api/auth/bootstrap"),
+    ]);
+    state.authConfig = config;
+    if (!session.authenticated) return showAuthGate();
+    state.user = session.user;
+    renderAccount();
+    hideAuthGate();
+    await refresh();
+    window.SkyBreezeLife?.activate(state.section);
+  } catch (error) {
+    showAuthGate({
+      message: `${error.message}. Перевір адресу API або онови сервер CRM.`,
+      tone: "error",
+    });
+  }
 }
 function statusClass(value = "") {
   const v = value.toLowerCase();
@@ -358,6 +469,9 @@ async function refresh() {
     $("#sync-label").textContent =
       `Оновлено ${new Date().toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}`;
   } catch (error) {
+    if (/увійти|токен доступу/i.test(error.message)) {
+      return showAuthGate({ message: error.message, tone: "error" });
+    }
     $("#lead-list").innerHTML =
       `<div class="empty"><b>CRM поки не підключена</b><br>${escapeHtml(error.message)}<br><button class="primary inline" onclick="document.querySelector('#settings-dialog').showModal()">Підключити API</button></div>`;
   }
@@ -485,6 +599,85 @@ async function createLead() {
   await openLead(created.id);
 }
 
+document.addEventListener("submit", async (event) => {
+  const form = event.target;
+  if (!/^auth-(login|register|forgot|reset)-form$/.test(form.id)) return;
+  event.preventDefault();
+  const submit = form.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  const data = new FormData(form);
+  try {
+    if (form.id === "auth-login-form") {
+      const payload = await request("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: data.get("email"),
+          password: data.get("password"),
+        }),
+      });
+      return acceptSession(payload);
+    }
+    if (form.id === "auth-register-form") {
+      const bootstrapToken = String(data.get("bootstrap_token") || "").trim();
+      const payload = await request("/api/auth/register", {
+        method: "POST",
+        headers: { "X-CRM-Token": bootstrapToken },
+        body: JSON.stringify({
+          name: data.get("name"),
+          email: data.get("email"),
+          password: data.get("password"),
+        }),
+      });
+      state.authConfig = { ...state.authConfig, bootstrap_required: false };
+      return acceptSession(payload);
+    }
+    if (form.id === "auth-forgot-form") {
+      await request("/api/auth/request-password-reset", {
+        method: "POST",
+        body: JSON.stringify({ email: data.get("email") }),
+      });
+      authMessage("Якщо адреса зареєстрована, посилання вже надіслано.", "success");
+      return;
+    }
+    if (form.id === "auth-reset-form") {
+      const password = String(data.get("password") || "");
+      if (password !== String(data.get("password_confirm") || ""))
+        throw new Error("Паролі не співпадають");
+      const token = new URLSearchParams(window.location.search).get("reset");
+      await request("/api/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+      return showAuthGate({
+        message: "Пароль змінено. Тепер увійди з новим паролем.",
+        tone: "success",
+      });
+    }
+  } catch (error) {
+    authMessage(error.message || "Не вдалося виконати дію", "error");
+  } finally {
+    if (document.contains(submit)) submit.disabled = false;
+  }
+});
+document.addEventListener("click", async (event) => {
+  const mode = event.target.closest("[data-auth-mode]")?.dataset.authMode;
+  if (mode) return showAuthGate({ mode });
+  if (event.target.closest("#account-btn")) {
+    if (!state.user) return showAuthGate();
+    try {
+      await request("/api/auth/logout", { method: "POST" });
+    } catch {
+      // The local session must still be cleared if a stale server is offline.
+    }
+    state.sessionToken = "";
+    state.user = null;
+    sessionStorage.removeItem("life-session-token");
+    renderAccount();
+    return showAuthGate({ message: "Ти вийшов з акаунта.", tone: "success" });
+  }
+});
+
 document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-quick-field]")) return;
   const row = event.target.closest("[data-lead]");
@@ -499,6 +692,8 @@ document.addEventListener("click", async (event) => {
     $("#page-title").textContent = tab.textContent
       .replace(/⌘|↗|◫|▣|\d/g, "")
       .trim();
+    state.section = "crm";
+    localStorage.setItem("life-active-section", state.section);
     return loadLeads();
   }
   const view = event.target.closest("[data-view]");
@@ -569,14 +764,16 @@ $("#new-lead").onclick = () =>
   createLead().catch((error) => alert(error.message));
 $("#settings-btn").onclick = () => {
   $("#api-url").value = state.api;
-  $("#api-token").value = state.token;
+  $("#api-token").value = state.legacyToken;
   $("#settings-dialog").showModal();
 };
 $("#save-settings").onclick = () => {
   state.api = $("#api-url").value.trim();
-  state.token = $("#api-token").value.trim();
+  state.legacyToken = $("#api-token").value.trim();
   localStorage.setItem("crm-api-url", state.api);
-  sessionStorage.setItem("crm-write-token", state.token);
-  refresh();
+  sessionStorage.setItem("crm-write-token", state.legacyToken);
+  bootstrapApp();
 };
-refresh();
+window.SkyBreezeApp = { state, request, refreshCrm: refresh, escapeHtml };
+window.dispatchEvent(new Event("skybreeze-app-ready"));
+bootstrapApp();
