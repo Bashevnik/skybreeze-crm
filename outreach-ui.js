@@ -3,7 +3,7 @@
   const esc = (v = "") => String(v).replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[c]);
   const app = () => window.SkyBreezeApp;
   const api = (path, options) => app().request(`/api/outreach${path}`, options);
-  const state = { active: false, route: "overview", params: new URLSearchParams(), meta: null, selected: null, toastTimer: null };
+  const state = { active: false, route: "overview", params: new URLSearchParams(), meta: null, selected: null, savedFilters: [], toastTimer: null };
   const titles = { overview: "Огляд", leads: "Усі ліди", pipeline: "Воронка", campaigns: "Кампанії", tasks: "Завдання", clients: "Клієнти", team: "Команда", activity: "Історія", analytics: "Аналітика" };
   const can = (role) => ({ viewer: 0, member: 1, manager: 2, admin: 3 }[state.meta?.role || "viewer"] >= ({ viewer: 0, member: 1, manager: 2, admin: 3 }[role] || 0));
   const date = (v) => v ? new Intl.DateTimeFormat("uk-UA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(v)) : "—";
@@ -51,8 +51,8 @@
     return `<form class="outreach-filters" data-lead-filter><label class="outreach-search">⌕<input name="q" value="${esc(p.get("q") || "")}" placeholder="Назва, телефон, Telegram, нотатка"></label><select name="stage"><option value="">Усі етапи</option>${["new", "working", "contacted", "positive", "meeting", "proposal", "won", "lost"].map((x) => `<option value="${x}" ${p.get("stage") === x ? "selected" : ""}>${stageLabel(x)}</option>`).join("")}</select><select name="assigned_to"><option value="">Усі відповідальні</option>${teamOptions(p.get("assigned_to") || "")}</select><select name="created_by"><option value="">Усі автори</option>${teamOptions(p.get("created_by") || "")}</select><select name="source"><option value="">Усі джерела</option>${(state.meta?.sources || []).map((x) => `<option value="${esc(x)}" ${p.get("source") === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select><label class="outreach-date">Від<input type="date" name="created_from" value="${esc(p.get("created_from") || "")}"></label><label class="outreach-date">До<input type="date" name="created_to" value="${esc(p.get("created_to") || "")}"></label><button class="ghost">Застосувати</button><button class="ghost" type="button" data-save-current-filter>Зберегти фільтр</button><a class="outreach-clear" href="#/crm/leads">Очистити</a></form>`;
   }
   async function leads() {
-    const query = new URLSearchParams(state.params); query.set("page_size", "60"); const data = await api(`/leads?${query}`);
-    shell("БАЗА", "Усі ліди", "Спільна база. Старі записи не приписані нікому: авторство в них лишається невідомим.", `${filterForm()}<section class="outreach-list"><div class="outreach-list-head"><span>Бізнес</span><span>Статус / результат</span><span>Контакт / джерело</span><span>Відповідальність</span><span></span></div>${data.leads.length ? data.leads.map(leadCard).join("") : empty("Лідів за цим фільтром немає", "Зміни фільтри або додай вручну.")}</section><p class="outreach-count">Показано ${data.leads.length} із ${data.total}</p>`, `<button class="primary" data-new-lead>+ Новий лід</button>`);
+    const query = new URLSearchParams(state.params); query.set("page_size", "60"); const [data, saved] = await Promise.all([api(`/leads?${query}`), api("/filters")]); state.savedFilters = saved.filters || [];
+    shell("БАЗА", "Усі ліди", "Спільна база. Старі записи не приписані нікому: авторство в них лишається невідомим.", `${filterForm()}${state.savedFilters.length ? `<div class="outreach-subnav saved-filters"><span>Збережені:</span>${state.savedFilters.filter((filter) => filter.scope === "leads").map((filter) => `<button data-load-filter="${filter.id}">${esc(filter.title)}</button>`).join("")}</div>` : ""}<section class="outreach-list"><div class="outreach-list-head"><span>Бізнес</span><span>Статус / результат</span><span>Контакт / джерело</span><span>Відповідальність</span><span></span></div>${data.leads.length ? data.leads.map(leadCard).join("") : empty("Лідів за цим фільтром немає", "Зміни фільтри або додай вручну.")}</section><p class="outreach-count">Показано ${data.leads.length} із ${data.total}</p>`, `<button class="primary" data-new-lead>+ Новий лід</button>`);
   }
   async function pipeline() {
     const keys = ["new", "working", "contacted", "positive", "meeting", "proposal", "won", "lost"], rows = await Promise.all(keys.map((stage) => api(`/leads?stage=${stage}&page_size=12`).then((x) => [stage, x])));
@@ -120,7 +120,7 @@
     } catch (error) { flash(error.message, "error"); if (busy) busy.disabled = false; }
   });
   document.addEventListener("click", async (event) => {
-    const el = event.target.closest("[data-open-lead],[data-open-client],[data-open-campaign],[data-close-outreach],[data-close-modal],[data-new-lead],[data-new-client],[data-new-task],[data-new-campaign],[data-task-done],[data-convert-lead],[data-favorite-client],[data-outreach-retry],[data-outreach-export],[data-save-current-filter]");
+    const el = event.target.closest("[data-open-lead],[data-open-client],[data-open-campaign],[data-close-outreach],[data-close-modal],[data-new-lead],[data-new-client],[data-new-task],[data-new-campaign],[data-task-done],[data-convert-lead],[data-favorite-client],[data-outreach-retry],[data-outreach-export],[data-save-current-filter],[data-load-filter]");
     if (!el) return;
     try {
       if (el.dataset.openLead) return openLead(el.dataset.openLead);
@@ -130,6 +130,7 @@
       if (el.hasAttribute("data-close-modal")) return $("#outreach-modal")?.close();
       if (el.hasAttribute("data-outreach-export")) return downloadExport(event);
       if (el.hasAttribute("data-save-current-filter")) { const title = window.prompt("Назва фільтра"); if (!title) return; await api("/filters", { method: "POST", body: JSON.stringify({ title, scope: "leads", filters: Object.fromEntries(state.params.entries()) }) }); return flash("Фільтр збережено для твого акаунта"); }
+      if (el.dataset.loadFilter) { const filter = state.savedFilters.find((item) => item.id === el.dataset.loadFilter); return filter ? go("leads", new URLSearchParams(filter.filters || {})) : undefined; }
       if (el.hasAttribute("data-new-lead")) return newLead();
       if (el.hasAttribute("data-new-client")) return newClient();
       if (el.hasAttribute("data-new-task")) return newTask({ lead_id: el.dataset.taskLead, client_id: el.dataset.taskClient });
