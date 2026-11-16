@@ -215,7 +215,7 @@
     $("#crm-view").classList.toggle("hidden", !crm);
     $("#crm-nav").hidden = !crm;
     document.querySelectorAll("[data-life-view]").forEach((item) => item.classList.toggle("active", item.dataset.lifeView === view));
-    if (crm) return app().refreshCrm();
+    if (crm) return window.SkyBreezeOutreach?.activate ? window.SkyBreezeOutreach.activate() : app().refreshCrm();
     return render(view);
   }
 
