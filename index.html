@@ -4,24 +4,47 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0b1020" />
-    <title>SkyBreeze CRM</title>
+    <title>SkyBreeze Life OS</title>
+    <link rel="manifest" href="manifest.webmanifest?v=20261116-1" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261115-4" />
-    <link rel="stylesheet" href="crm-layout.css?v=20261115-4" />
+    <link rel="stylesheet" href="styles.css?v=20261116-2" />
+    <link rel="stylesheet" href="crm-layout.css?v=20261116-1" />
+    <link rel="stylesheet" href="life.css?v=20261116-1" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
           <span class="brand-mark">SB</span
-          ><span>SkyBreeze<br /><b>CRM</b></span>
+          ><span>SkyBreeze<br /><b>Life OS</b></span>
         </div>
-        <nav class="nav" aria-label="CRM navigation">
+        <nav class="nav" aria-label="Life OS navigation">
+          <p class="nav-label">ОСОБИСТЕ</p>
+          <button class="nav-item life-nav active" data-life-view="dashboard">
+            <span>◌</span> Огляд
+          </button>
+          <button class="nav-item life-nav" data-life-view="planner">
+            <span>◫</span> Планер
+          </button>
+          <button class="nav-item life-nav" data-life-view="training">
+            <span>↗</span> Тренування
+          </button>
+          <button class="nav-item life-nav" data-life-view="nutrition">
+            <span>◒</span> Харчування
+          </button>
+          <button class="nav-item life-nav" data-life-view="analytics">
+            <span>⌁</span> Аналітика
+          </button>
+          <p class="nav-label nav-label-business">РОБОТА</p>
+          <button class="nav-item life-nav" data-life-view="crm">
+            <span>⌘</span> Outreach CRM
+          </button>
+          <div id="crm-nav" class="crm-nav" hidden>
           <button class="nav-item active" data-tab="all">
             <span>⌘</span> Усі ліди <em id="nav-total">—</em>
           </button>
@@ -34,14 +57,21 @@
           <button class="nav-item" data-tab="archive">
             <span>▣</span> Архів
           </button>
+          </div>
+          <p class="nav-label nav-label-business">СИСТЕМА</p>
+          <button class="nav-item life-nav" data-life-view="settings">
+            <span>⚙</span> Налаштування
+          </button>
         </nav>
         <div class="sidebar-foot">
           <span class="pulse"></span> База збережена<br /><small id="sync-label"
             >Локальна база даних</small
-          >
+          ><button class="account-btn" id="account-btn" type="button" hidden></button>
         </div>
       </aside>
       <main class="main">
+        <section id="life-view" class="life-view" aria-live="polite"></section>
+        <div id="crm-view" class="crm-view hidden">
         <header class="topbar">
           <div>
             <p class="eyebrow">SALES OPERATING SYSTEM</p>
@@ -98,6 +128,7 @@
           <div id="lead-list" class="lead-list"></div>
           <div id="kanban" class="kanban hidden"></div>
         </section>
+        </div>
       </main>
     </div>
     <button
@@ -144,7 +175,15 @@
         </button>
       </form>
     </dialog>
+    <div class="auth-gate" id="auth-gate" aria-live="polite" hidden></div>
+    <div id="life-form-message" role="status" aria-live="polite"></div>
     <script src="config.js"></script>
-    <script src="app.js?v=20261115-4"></script>
+    <script src="app.js?v=20261116-2"></script>
+    <script src="life-ui.js?v=20261116-1"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js").catch(() => {}));
+      }
+    </script>
   </body>
 </html>
