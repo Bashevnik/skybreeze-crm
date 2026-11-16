@@ -1,0 +1,329 @@
+(() => {
+  const $ = (selector) => document.querySelector(selector);
+  const app = () => window.SkyBreezeApp;
+  const api = (...args) => app().request(...args);
+  const escape = (value = "") => app().escapeHtml(value);
+  const dateKey = (value = new Date()) => new Date(value).toISOString().slice(0, 10);
+  const today = () => dateKey();
+  const money = (value, currency = "UAH") =>
+    new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 0 }).format(Number(value || 0)) +
+    (currency ? ` ${currency}` : "");
+  const number = (value, fallback = "—") =>
+    value == null || Number.isNaN(Number(value)) ? fallback : new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 1 }).format(Number(value));
+  const formatDate = (value) => {
+    if (!value) return "Без дати";
+    const date = new Date(`${value}`.slice(0, 10));
+    return Number.isNaN(date.valueOf()) ? String(value) : date.toLocaleDateString("uk-UA", { day: "numeric", month: "short" });
+  };
+  const statusLabel = {
+    inbox: "Вхідні",
+    month: "Місяць",
+    week: "Тиждень",
+    today: "Сьогодні",
+    done: "Готово",
+    archived: "Архів",
+    planned: "Заплановано",
+    completed: "Виконано",
+    skipped: "Пропущено",
+  };
+  const state = { view: null, workoutId: null, loaded: 0 };
+
+  function page(eyebrow, title, subtitle, body, actions = "") {
+    return `<header class="life-topbar"><div><p class="eyebrow">${eyebrow}</p><h1>${title}</h1><p>${subtitle}</p></div><div class="life-top-actions">${actions}</div></header>${body}`;
+  }
+  function card(title, value, note = "", tone = "") {
+    return `<article class="life-card ${tone}"><span>${escape(title)}</span><strong>${value}</strong><small>${escape(note)}</small></article>`;
+  }
+  function empty(title, text) {
+    return `<div class="life-empty"><b>${escape(title)}</b><p>${escape(text)}</p></div>`;
+  }
+  function taskCard(task, compact = false) {
+    const detail = [task.project_title, task.goal_title, task.due_date ? `до ${formatDate(task.due_date)}` : ""].filter(Boolean).join(" · ");
+    return `<article class="task-card priority-${escape(task.priority)}">
+      <div class="task-card-copy"><span class="task-status">${escape(statusLabel[task.status] || task.status)}</span><b>${escape(task.title)}</b>${detail ? `<small>${escape(detail)}</small>` : ""}${!compact && task.notes ? `<p>${escape(task.notes)}</p>` : ""}</div>
+      <div class="task-card-actions">${task.status !== "done" && task.status !== "archived" ? `<button class="life-icon-action" type="button" data-task-transition="${task.id}" data-task-status="done" title="Позначити виконаною">✓</button>` : ""}<button class="life-icon-action" type="button" data-task-transition="${task.id}" data-task-status="${task.status === "today" ? "week" : "today"}" title="Перенести у фокус">↗</button></div>
+    </article>`;
+  }
+  function taskList(title, tasks, detail) {
+    return `<section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">${escape(detail)}</p><h2>${escape(title)}</h2></div><span class="count-badge">${tasks.length}</span></div>${tasks.length ? `<div class="task-stack">${tasks.map((task) => taskCard(task)).join("")}</div>` : empty("Поки порожньо", "Додай одну конкретну дію — вона з’явиться тут.")}</section>`;
+  }
+  function selectOptions(items, selected, emptyLabel = "Не обрано") {
+    return `<option value="">${escape(emptyLabel)}</option>${items.map((item) => `<option value="${escape(item.id)}"${item.id === selected ? " selected" : ""}>${escape(item.title)}</option>`).join("")}`;
+  }
+  function setMessage(message = "", tone = "") {
+    const node = $("#life-form-message");
+    if (!node) return;
+    node.textContent = message;
+    node.dataset.tone = tone;
+  }
+  function isCurrent(view, ticket) {
+    return state.view === view && state.loaded === ticket;
+  }
+
+  async function renderDashboard(ticket) {
+    const data = await api("/api/life/dashboard");
+    if (!isCurrent("dashboard", ticket)) return;
+    const nutrition = data.nutrition || {};
+    const outreach = data.outreach || {};
+    const taskMarkup = (data.priority_tasks || []).map((task) => taskCard(task, true)).join("") || empty("Фокус ще не обраний", "Створи одну задачу на сьогодні у Планері.");
+    $("#life-view").innerHTML = page(
+      "LIFE OS · СЬОГОДНІ",
+      "Спокійний план на день",
+      `Огляд на ${formatDate(data.today)}. Тут лише зафіксовані дані — без медичних висновків та вигаданих прогнозів.`,
+      `<div class="life-metrics">${card("Виконано цього тижня", `${data.week?.completed_tasks || 0}`, `${data.week?.completion_percent || 0}% від запланованого`, "mint")}${card("Харчування сьогодні", `${nutrition.meals || 0}`, `${number(nutrition.protein_g, "—")} г білка · ${number(nutrition.calories, "—")} ккал`, "blue")}${card("Вода", nutrition.water_ml == null ? "—" : `${number(nutrition.water_ml)} мл`, "Запису за сьогодні немає — це нормально", "orange")}${card("Outreach", `${outreach.sent || 0}/${outreach.leads || 0}`, `${outreach.replies || 0} відповідей · ${outreach.calls || 0} дзвінків`, "violet")}</div>
+      <div class="life-dashboard-grid"><section class="life-panel life-focus-panel"><div class="life-section-heading"><div><p class="eyebrow">ГОЛОВНИЙ ФОКУС</p><h2>${data.main_task ? escape(data.main_task.title) : "Без обраної задачі"}</h2></div><button class="ghost" type="button" data-life-open="planner">Відкрити планер</button></div>${data.main_task ? `<p class="focus-note">${escape(data.main_task.notes || "Одна зрозуміла дія важливіша за довгий список.")}</p><div class="focus-meta"><span>${escape(statusLabel[data.main_task.status])}</span>${data.main_task.due_date ? `<span>до ${formatDate(data.main_task.due_date)}</span>` : ""}</div><button class="primary" type="button" data-task-transition="${data.main_task.id}" data-task-status="done">Позначити виконаною</button>` : `<p class="focus-note">Почни з короткої конкретної задачі — її можна запланувати безпосередньо у Планері.</p>`}</section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">НАСТУПНІ КРОКИ</p><h2>Три пріоритети</h2></div></div><div class="task-stack compact">${taskMarkup}</div></section></div>
+      <div class="life-dashboard-grid lower"><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ТРЕНУВАННЯ</p><h2>${data.today_workout ? escape(data.today_workout.title) : "На сьогодні не заплановано"}</h2></div><button class="ghost" type="button" data-life-open="training">Журнал</button></div><p class="life-quiet">${data.today_workout ? `${escape(statusLabel[data.today_workout.status])} · ${formatDate(data.today_workout.scheduled_date)}` : "План тренування з’явиться після того, як ти створиш шаблон або заплануєш сесію."}</p></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ВАГА</p><h2>${data.weights?.[0]?.weight_kg ? `${number(data.weights[0].weight_kg)} кг` : "Немає записів"}</h2></div><button class="ghost" type="button" data-life-open="nutrition">Харчування</button></div><p class="life-quiet">${data.weights?.length > 1 ? `${data.weights.length} останніх записів доступні в модулі харчування.` : "Фіксуй факт вимірювання без інтерпретації."}</p></section></div>`,
+      `<button class="ghost" type="button" data-life-open="planner">+ Нова задача</button>`,
+    );
+  }
+
+  async function renderPlanner(ticket) {
+    const [areas, goals, projects, tasks] = await Promise.all([
+      api("/api/life/areas"), api("/api/life/goals"), api("/api/life/projects"), api("/api/life/tasks"),
+    ]);
+    if (!isCurrent("planner", ticket)) return;
+    const allTasks = tasks.tasks || [];
+    const active = allTasks.filter((task) => !["done", "archived"].includes(task.status));
+    const goalSections = [
+      ["year", "Рік", "Напрям, який хочеш тримати в полі зору"],
+      ["quarter", "90 днів", "Відчутний крок, який підтримує річну ціль"],
+      ["month", "Місяць", "Практичний результат цього місяця"],
+      ["week", "Тиждень", "Короткий план, який можна реально виконати"],
+    ].map(([period, title, text]) => {
+      const rows = (goals.goals || []).filter((goal) => goal.period === period && goal.status !== "archived");
+      return `<section class="goal-column"><p class="eyebrow">${period.toUpperCase()}</p><h3>${title}</h3><p>${text}</p>${rows.length ? rows.map((goal) => `<article class="goal-item"><b>${escape(goal.title)}</b>${goal.target_value != null ? `<small>${number(goal.current_value)} / ${number(goal.target_value)} ${escape(goal.unit)}</small>` : ""}${goal.due_date ? `<small>до ${formatDate(goal.due_date)}</small>` : ""}</article>`).join("") : '<span class="muted">Поки не задано</span>'}</section>`;
+    }).join("");
+    $("#life-view").innerHTML = page(
+      "ПЛАНЕР · ВІД НАПРЯМКУ ДО ДІЇ",
+      "План без перевантаження",
+      "Цілі створюють контекст, а статус задачі показує, де вона живе зараз. Готові задачі не дублюються при переміщенні — зберігається одна історія.",
+      `<div class="planner-layout"><section class="life-panel planner-form-panel"><div class="life-section-heading"><div><p class="eyebrow">ШВИДКЕ ДОДАВАННЯ</p><h2>Задача</h2></div></div><form class="life-form" data-life-form="task"><label>Що зробити<input name="title" maxlength="220" required placeholder="Наприклад: узгодити план на понеділок"></label><div class="form-row"><label>Коли<select name="status"><option value="today">Сьогодні</option><option value="week">Цей тиждень</option><option value="month">Цей місяць</option><option value="inbox">Вхідні</option></select></label><label>Пріоритет<select name="priority"><option value="normal">Звичайний</option><option value="high">Високий</option><option value="low">Низький</option></select></label></div><div class="form-row"><label>Дата<input name="due_date" type="date"></label><label>Оцінка, хв<input name="estimate_minutes" type="number" min="1" max="1440" inputmode="numeric"></label></div><label>Проєкт<select name="project_id">${selectOptions(projects.projects || [], "", "Без проєкту")}</select></label><label>Нотатка<textarea name="notes" rows="2" placeholder="Необов’язково"></textarea></label><button class="primary" type="submit">Додати задачу</button></form></section>
+      ${taskList("Сьогодні", active.filter((task) => task.status === "today"), "FOCUS")}${taskList("Тиждень", active.filter((task) => task.status === "week"), "ПЛАН")}</div>
+      <section class="life-panel goal-map"><div class="life-section-heading"><div><p class="eyebrow">ІЄРАРХІЯ</p><h2>Від великого до конкретного</h2></div><details class="life-disclosure"><summary>+ Додати ціль</summary><form class="life-form compact-form" data-life-form="goal"><label>Назва<input name="title" maxlength="220" required></label><div class="form-row"><label>Горизонт<select name="period"><option value="year">Рік</option><option value="quarter">90 днів</option><option value="month">Місяць</option><option value="week">Тиждень</option></select></label><label>Сфера<select name="area_id">${selectOptions(areas.areas || [], "", "Без сфери")}</select></label></div><div class="form-row"><label>Цільове значення<input name="target_value" inputmode="decimal"></label><label>Одиниця<input name="unit" maxlength="40" placeholder="кг, задач, грн"></label></div><label>Дедлайн<input name="due_date" type="date"></label><button class="primary" type="submit">Зберегти ціль</button></form></details></div><div class="goal-map-grid">${goalSections}</div></section>
+      <div class="planner-bottom-grid">${taskList("Місяць", active.filter((task) => task.status === "month"), "ЗАПЛАНОВАНО")}${taskList("Вхідні", active.filter((task) => task.status === "inbox"), "РОЗІБРАТИ")}${taskList("Нещодавно виконано", allTasks.filter((task) => task.status === "done").slice(0, 5), "ІСТОРІЯ")}</div>`,
+      `<details class="life-disclosure top-disclosure"><summary>+ Нова сфера</summary><form class="life-form inline-form" data-life-form="area"><label>Назва<input name="title" maxlength="120" required placeholder="Наприклад: Здоров’я"></label><label>Колір<input name="color" value="#19d4bd" pattern="#[0-9A-Fa-f]{6}"></label><button class="ghost" type="submit">Зберегти</button></form></details>`,
+    );
+  }
+
+  async function renderTraining(ticket) {
+    const [templates, workoutData] = await Promise.all([api("/api/life/training/days"), api("/api/life/workouts")]);
+    if (!isCurrent("training", ticket)) return;
+    let selected = null;
+    const workouts = workoutData.workouts || [];
+    const selectedId = state.workoutId || workouts[0]?.id;
+    if (selectedId) selected = await api(`/api/life/workouts/${selectedId}`).catch(() => null);
+    if (!isCurrent("training", ticket)) return;
+    const days = templates.days || [];
+    $("#life-view").innerHTML = page(
+      "ТРЕНУВАННЯ · ЖУРНАЛ",
+      "План, факт і самопочуття",
+      "Робоча вага, повторення, RIR і відчуття фіксуються окремо. Це журнал тренувань, а не медична рекомендація.",
+      `<div class="training-grid"><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ШАБЛОНИ</p><h2>Тренувальні дні</h2></div><details class="life-disclosure"><summary>+ Шаблон</summary><form class="life-form compact-form" data-life-form="training-day"><label>Назва дня<input name="title" maxlength="220" required placeholder="Наприклад: Верх тіла"></label><label>Нотатка<textarea name="description" rows="2"></textarea></label><button class="primary" type="submit">Створити</button></form></details></div><div class="training-template-list">${days.length ? days.map((day) => `<article class="training-template"><div><b>${escape(day.title)}</b><p>${escape(day.description || "Без опису")}</p><ul>${day.exercises.length ? day.exercises.map((exercise) => `<li>${escape(exercise.title)} <small>${exercise.planned_sets || "—"}× ${exercise.rep_min || "—"}${exercise.rep_max ? `–${exercise.rep_max}` : ""}</small></li>`).join("") : "<li>Ще немає вправ</li>"}</ul></div><details class="life-disclosure small"><summary>+ Вправа</summary><form class="life-form compact-form" data-life-form="exercise" data-training-day="${day.id}"><label>Назва<input name="title" required maxlength="220"></label><div class="form-row"><label>Підходи<input name="planned_sets" type="number" min="1" max="20"></label><label>Повторення<input name="rep_min" type="number" min="1" max="100"></label></div><label>Макс. повторень<input name="rep_max" type="number" min="1" max="100"></label><label>Техніка<textarea name="technique_notes" rows="2"></textarea></label><button class="ghost" type="submit">Додати</button></form></details></article>`).join("") : empty("Шаблонів ще немає", "Створи день і додай вправи, щоб швидко планувати сесії.")}</div></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">НАСТУПНЕ</p><h2>Запланувати тренування</h2></div></div><form class="life-form" data-life-form="workout"><label>Шаблон<select name="training_day_id">${selectOptions(days, "", "Без шаблону")}</select></label><label>Назва (необов’язково)<input name="title" maxlength="220" placeholder="Візьмемо назву шаблону"></label><label>Дата<input name="scheduled_date" type="date" value="${today()}"></label><button class="primary" type="submit">Додати в план</button></form><div class="workout-list">${workouts.length ? workouts.slice(0, 8).map((workout) => `<button type="button" class="workout-row ${workout.id === selected?.id ? "active" : ""}" data-workout-open="${workout.id}"><span>${escape(workout.title)}</span><small>${formatDate(workout.scheduled_date || workout.performed_at)} · ${escape(statusLabel[workout.status])}</small></button>`).join("") : empty("Немає тренувань", "Заплануй першу сесію з шаблону або без нього.")}</div></section></div>
+      ${selected ? workoutDetail(selected) : ""}`,
+    );
+  }
+
+  function workoutDetail(workout) {
+    return `<section class="life-panel workout-detail"><div class="life-section-heading"><div><p class="eyebrow">ВИКОНАННЯ</p><h2>${escape(workout.title)}</h2><p>${formatDate(workout.scheduled_date || workout.performed_at)}</p></div><span class="status-pill">${escape(statusLabel[workout.status])}</span></div><form class="life-form workout-sets-form" data-life-form="workout-sets" data-workout="${workout.id}"><div class="set-table"><div class="set-head"><span>Вправа</span><span>Вага, кг</span><span>Повтори</span><span>RIR</span><span>Дискомфорт</span></div>${(workout.sets || []).map((set) => `<div class="set-row" data-set="${set.id}"><b>${escape(set.exercise_title)} <small>№${set.set_number}</small></b><input name="weight_kg" inputmode="decimal" value="${set.weight_kg ?? ""}" aria-label="Вага"><input name="reps" inputmode="numeric" value="${set.reps ?? ""}" aria-label="Повтори"><input name="rir" inputmode="decimal" value="${set.rir ?? ""}" aria-label="RIR"><input name="discomfort" value="${escape(set.discomfort || "")}" aria-label="Дискомфорт"></div>`).join("") || '<p class="life-quiet">У цього тренування ще немає вправ. Їх можна додати в шаблоні для наступної сесії.</p>'}</div><label>Самопочуття<textarea name="wellbeing" rows="2" placeholder="Як відчувалося тренування">${escape(workout.wellbeing || "")}</textarea></label><label>Нотатка<textarea name="notes" rows="2">${escape(workout.notes || "")}</textarea></label><div class="form-actions"><button class="ghost" type="submit">Зберегти підходи</button><button class="primary" type="button" data-workout-complete="${workout.id}">Позначити виконаним</button></div></form></section>`;
+  }
+
+  async function renderNutrition(ticket) {
+    const [products, meals, metrics, targetData] = await Promise.all([
+      api("/api/life/products"), api(`/api/life/meals?date=${today()}`), api("/api/life/body-metrics"), api("/api/life/nutrition/targets"),
+    ]);
+    if (!isCurrent("nutrition", ticket)) return;
+    const rows = meals.meals || [];
+    const sum = (field) => rows.reduce((total, row) => total + Number(row[field] || 0), 0);
+    const targets = targetData.targets || {};
+    $("#life-view").innerHTML = page(
+      "ХАРЧУВАННЯ · ЩОДЕННИК",
+      "Дані замість здогадів",
+      "Зберігай те, що фактично з’їв. БЖУ автоматично рахуються з продукту, якщо для нього є дані на 100 г; інакше їх можна ввести вручну.",
+      `<div class="life-metrics nutrition-metrics">${card("Прийомів їжі", rows.length, "За сьогодні", "mint")}${card("Калорії", `${number(sum("calories"), "—")} ккал`, targets.calories != null ? `твоя ціль: ${number(targets.calories)} ккал` : "За внесеними записами", "blue")}${card("Білок", `${number(sum("protein_g"), "—")} г`, targets.protein_g != null ? `твоя ціль: ${number(targets.protein_g)} г` : "За внесеними записами", "orange")}${card("Остання вага", metrics.entries?.[0]?.weight_kg ? `${number(metrics.entries[0].weight_kg)} кг` : "—", metrics.entries?.[0] ? formatDate(metrics.entries[0].recorded_on) : "Ще не зафіксовано", "violet")}</div>
+      <div class="nutrition-grid"><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ДОДАТИ ЗАПИС</p><h2>Що з’їв</h2></div></div><form class="life-form" data-life-form="meal"><label>Збережений продукт<select name="product_id"><option value="">Страва без каталогу</option>${(products.products || []).map((product) => `<option value="${product.id}">${escape(product.title)}</option>`).join("")}</select></label><label>Назва<input name="title" maxlength="220" required placeholder="Наприклад: сніданок вдома"></label><div class="form-row"><label>Тип<select name="meal_type"><option value="breakfast">Сніданок</option><option value="lunch">Обід</option><option value="dinner">Вечеря</option><option value="snack">Перекус</option></select></label><label>Вага, г<input name="amount_g" type="number" min="0" inputmode="decimal"></label></div><div class="macro-row"><label>Ккал<input name="calories" inputmode="decimal"></label><label>Б<input name="protein_g" inputmode="decimal"></label><label>Ж<input name="fat_g" inputmode="decimal"></label><label>В<input name="carbs_g" inputmode="decimal"></label></div><label>Нотатка<input name="note" maxlength="1000"></label><button class="primary" type="submit">Додати прийом їжі</button></form></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">СЬОГОДНІ</p><h2>Щоденник</h2></div><span class="count-badge">${rows.length}</span></div><div class="meal-list">${rows.length ? rows.map((meal) => `<article class="meal-row"><div><b>${escape(meal.title)}</b><small>${escape({ breakfast: "Сніданок", lunch: "Обід", dinner: "Вечеря", snack: "Перекус" }[meal.meal_type] || meal.meal_type)}${meal.amount_g ? ` · ${number(meal.amount_g)} г` : ""}</small></div><span>${number(meal.calories, "—")} ккал<br><small>Б ${number(meal.protein_g, "—")} · Ж ${number(meal.fat_g, "—")} · В ${number(meal.carbs_g, "—")}</small></span></article>`).join("") : empty("Поки немає записів", "Додай реальний прийом їжі — підсумки оновляться.")}</div></section></div>
+      <div class="nutrition-grid lower"><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">КАТАЛОГ</p><h2>Продукти</h2></div><details class="life-disclosure"><summary>+ Новий продукт</summary><form class="life-form compact-form" data-life-form="product"><label>Назва<input name="title" maxlength="220" required></label><label>Категорія<input name="category" maxlength="100"></label><div class="macro-row"><label>Ккал /100г<input name="calories_per_100g" inputmode="decimal"></label><label>Б /100г<input name="protein_per_100g" inputmode="decimal"></label><label>Ж /100г<input name="fat_per_100g" inputmode="decimal"></label><label>В /100г<input name="carbs_per_100g" inputmode="decimal"></label></div><button class="ghost" type="submit">Зберегти продукт</button></form></details></div><div class="product-list">${(products.products || []).length ? products.products.map((product) => `<span>${escape(product.title)} <small>${number(product.calories_per_100g, "—")} ккал /100г</small></span>`).join("") : '<span class="muted">Каталог ще порожній</span>'}</div></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ТВОЇ ОРІЄНТИРИ</p><h2>Цілі БЖУ</h2></div></div><p class="life-quiet">Ти задаєш орієнтири самостійно. Система лише порівнює їх із внесеними фактами.</p><form class="life-form compact-form" data-life-form="nutrition-targets"><div class="macro-row"><label>Ккал<input name="calories" inputmode="decimal" value="${targets.calories ?? ""}"></label><label>Білок, г<input name="protein_g" inputmode="decimal" value="${targets.protein_g ?? ""}"></label><label>Жири, г<input name="fat_g" inputmode="decimal" value="${targets.fat_g ?? ""}"></label><label>Вуглеводи, г<input name="carbs_g" inputmode="decimal" value="${targets.carbs_g ?? ""}"></label></div><button class="ghost" type="submit">Зберегти орієнтири</button></form></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ЩОДЕННИЙ ЧЕК-ІН</p><h2>Вода і самопочуття</h2></div></div><form class="life-form compact-form" data-life-form="nutrition-checkin"><div class="form-row"><label>Вода, мл<input name="water_ml" type="number" min="0" max="20000" inputmode="numeric"></label><label>Регулярність<input name="regularity" maxlength="100" placeholder="Наприклад: нормально"></label></div><label>Самопочуття<textarea name="wellbeing_note" rows="2"></textarea></label><button class="ghost" type="submit">Зберегти чек-ін</button></form></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ВИМІРЮВАННЯ</p><h2>Вага</h2></div></div><form class="life-form compact-form" data-life-form="body-metric"><div class="form-row"><label>Дата<input name="recorded_on" type="date" value="${today()}"></label><label>Вага, кг<input name="weight_kg" type="number" step="0.1" min="20" max="500" required inputmode="decimal"></label></div><label>Нотатка<input name="note" maxlength="1000"></label><button class="ghost" type="submit">Зберегти вимірювання</button></form></section></div>`,
+    );
+  }
+
+  async function renderAnalytics(ticket) {
+    const [dashboard, tasks, workouts, meals, income] = await Promise.all([
+      api("/api/life/dashboard"), api("/api/life/tasks"), api("/api/life/workouts"), api("/api/life/meals"), api("/api/life/income"),
+    ]);
+    if (!isCurrent("analytics", ticket)) return;
+    const done = (tasks.tasks || []).filter((task) => task.status === "done").length;
+    const plannedWorkouts = (workouts.workouts || []).filter((item) => item.status === "planned").length;
+    const completedWorkouts = (workouts.workouts || []).filter((item) => item.status === "completed").length;
+    const totals = (income.entries || []).reduce((all, item) => {
+      all[item.currency || "UAH"] = (all[item.currency || "UAH"] || 0) + Number(item.amount || 0);
+      return all;
+    }, {});
+    $("#life-view").innerHTML = page(
+      "АНАЛІТИКА · ФАКТИ",
+      "Тільки те, що зафіксовано",
+      "Це підсумок даних у системі, а не прогноз і не рекомендація. Чим більше регулярних записів — тим точніша картина процесу.",
+      `<div class="life-metrics">${card("Задач виконано", done, `із ${(tasks.tasks || []).length} у системі`, "mint")}${card("Тренування", completedWorkouts, `${plannedWorkouts} ще заплановано`, "blue")}${card("Записів харчування", (meals.meals || []).length, "За весь доступний період", "orange")}${card("Outreach-відповіді", dashboard.outreach?.replies || 0, `${dashboard.outreach?.calls || 0} дзвінків · ${dashboard.outreach?.clients || 0} клієнтів`, "violet")}</div>
+      <div class="analytics-grid"><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ФІНАНСИ</p><h2>Доходи</h2></div></div><div class="income-summary">${Object.keys(totals).length ? Object.entries(totals).map(([currency, amount]) => `<strong>${money(amount, currency)}</strong>`).join("") : '<p class="life-quiet">Записів доходу поки немає.</p>'}</div><details class="life-disclosure"><summary>+ Додати дохід</summary><form class="life-form compact-form" data-life-form="income"><div class="form-row"><label>Сума<input name="amount" type="number" min="0" step="0.01" required inputmode="decimal"></label><label>Валюта<input name="currency" value="UAH" maxlength="8"></label></div><label>Джерело<input name="source" maxlength="120"></label><label>Дата<input name="received_on" type="date" value="${today()}"></label><label>Нотатка<textarea name="note" rows="2"></textarea></label><button class="ghost" type="submit">Зберегти</button></form></details></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ДИСЦИПЛІНА</p><h2>Задачі за статусом</h2></div></div><div class="bar-list">${["today", "week", "month", "inbox", "done"].map((status) => { const n = (tasks.tasks || []).filter((task) => task.status === status).length; const max = Math.max(1, (tasks.tasks || []).length); return `<div><span>${escape(statusLabel[status])}</span><i><b style="width:${Math.round((n / max) * 100)}%"></b></i><strong>${n}</strong></div>`; }).join("")}</div></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ДАНІ</p><h2>Експорт</h2></div></div><p class="life-quiet">JSON експортується з поточного акаунта. Це не містить чужих даних.</p><div class="export-actions"><button class="ghost" type="button" data-export-scope="tasks">Задачі JSON</button><button class="ghost" type="button" data-export-scope="meals">Харчування JSON</button><button class="ghost" type="button" data-export-scope="workouts">Тренування JSON</button><button class="ghost" type="button" data-export-scope="outreach">Outreach JSON</button></div></section></div>`,
+    );
+  }
+
+  async function renderSettings(ticket) {
+    const user = app().state.user;
+    if (!isCurrent("settings", ticket)) return;
+    $("#life-view").innerHTML = page(
+      "НАЛАШТУВАННЯ · ДОСТУП",
+      "Акаунт і дані",
+      "Паролі не зберігаються у відкритому вигляді. Сесії відокремлені від спільного старого ключа CRM.",
+      `<div class="settings-grid"><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ПРОФІЛЬ</p><h2>${escape(user?.name || user?.email || "Акаунт")}</h2></div></div><form class="life-form" data-life-form="profile"><label>Ім’я<input name="name" maxlength="120" value="${escape(user?.name || "")}" required></label><label>Email<input value="${escape(user?.email || "")}" disabled></label><p class="form-help">Роль: <b>${user?.role === "owner" ? "власник" : "учасник"}</b>. Зміна email потребує окремого безпечного сценарію підтвердження, тому тут навмисно недоступна.</p><button class="primary" type="submit">Зберегти ім’я</button></form></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">БЕЗПЕКА</p><h2>Змінити пароль</h2></div></div><form class="life-form" data-life-form="password"><label>Поточний пароль<input name="current_password" type="password" autocomplete="current-password" required></label><label>Новий пароль<input name="new_password" type="password" minlength="12" autocomplete="new-password" required></label><label>Повтори новий пароль<input name="password_confirm" type="password" minlength="12" autocomplete="new-password" required></label><button class="ghost" type="submit">Оновити пароль</button></form></section>
+      <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">РЕЗЕРВНЕ КОПІЮВАННЯ</p><h2>Вивантаження даних</h2></div></div><p class="life-quiet">Експорт дає тобі незалежну копію особистих даних. Серверний backup запускається окремим безпечним скриптом на інфраструктурі, а не з браузера.</p><div class="export-actions"><button class="ghost" type="button" data-export-scope="tasks">Задачі</button><button class="ghost" type="button" data-export-scope="meals">Харчування</button><button class="ghost" type="button" data-export-scope="workouts">Тренування</button></div></section>
+      ${user?.role === "owner" ? `<section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">КОМАНДА</p><h2>Новий учасник</h2></div></div><form class="life-form" data-life-form="member"><label>Ім’я<input name="name" maxlength="120" required></label><label>Email<input name="email" type="email" required></label><label>Тимчасовий пароль<input name="password" type="password" minlength="12" required></label><p class="form-help">Передай тимчасовий пароль безпечним каналом; новий учасник зможе змінити його в профілі.</p><button class="ghost" type="submit">Створити учасника</button></form></section>` : ""}</div>`,
+    );
+  }
+
+  async function render(view) {
+    if (!app()?.state?.user) return;
+    const ticket = ++state.loaded;
+    state.view = view;
+    const host = $("#life-view");
+    host.innerHTML = '<div class="life-loading"><span></span>Завантажуємо дані…</div>';
+    try {
+      if (view === "dashboard") return renderDashboard(ticket);
+      if (view === "planner") return renderPlanner(ticket);
+      if (view === "training") return renderTraining(ticket);
+      if (view === "nutrition") return renderNutrition(ticket);
+      if (view === "analytics") return renderAnalytics(ticket);
+      if (view === "settings") return renderSettings(ticket);
+    } catch (error) {
+      if (isCurrent(view, ticket)) host.innerHTML = `<div class="life-empty"><b>Не вдалося завантажити дані</b><p>${escape(error.message)}</p><button class="primary" type="button" data-life-open="${view}">Спробувати ще раз</button></div>`;
+    }
+  }
+
+  function activate(view = "dashboard") {
+    const crm = view === "crm";
+    app().state.section = view;
+    localStorage.setItem("life-active-section", view);
+    $("#life-view").classList.toggle("hidden", crm);
+    $("#crm-view").classList.toggle("hidden", !crm);
+    $("#crm-nav").hidden = !crm;
+    document.querySelectorAll("[data-life-view]").forEach((item) => item.classList.toggle("active", item.dataset.lifeView === view));
+    if (crm) return app().refreshCrm();
+    return render(view);
+  }
+
+  function formData(form) {
+    return Object.fromEntries(new FormData(form).entries());
+  }
+  async function exportJson(scope) {
+    const data = await api(`/api/life/export?scope=${encodeURIComponent(scope)}`);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = `skybreeze-${scope}-${today()}.json`;
+    link.click();
+    URL.revokeObjectURL(href);
+  }
+
+  document.addEventListener("click", async (event) => {
+    const nav = event.target.closest("[data-life-view]");
+    if (nav) return activate(nav.dataset.lifeView);
+    const open = event.target.closest("[data-life-open]");
+    if (open) return activate(open.dataset.lifeOpen);
+    const transition = event.target.closest("[data-task-transition]");
+    if (transition) {
+      transition.disabled = true;
+      try {
+        await api(`/api/life/tasks/${transition.dataset.taskTransition}/transition`, { method: "POST", body: JSON.stringify({ status: transition.dataset.taskStatus }) });
+        return render(state.view);
+      } catch (error) {
+        transition.disabled = false;
+        return setMessage(error.message, "error");
+      }
+    }
+    const workout = event.target.closest("[data-workout-open]");
+    if (workout) {
+      state.workoutId = workout.dataset.workoutOpen;
+      return render("training");
+    }
+    const completeWorkout = event.target.closest("[data-workout-complete]");
+    if (completeWorkout) {
+      completeWorkout.disabled = true;
+      try {
+        await api(`/api/life/workouts/${completeWorkout.dataset.workoutComplete}`, { method: "PATCH", body: JSON.stringify({ status: "completed" }) });
+        return render("training");
+      } catch (error) {
+        completeWorkout.disabled = false;
+        return setMessage(error.message, "error");
+      }
+    }
+    const exportButton = event.target.closest("[data-export-scope]");
+    if (exportButton) {
+      exportButton.disabled = true;
+      try { await exportJson(exportButton.dataset.exportScope); setMessage("Експорт готовий", "success"); } catch (error) { setMessage(error.message, "error"); }
+      exportButton.disabled = false;
+    }
+  });
+
+  document.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-life-form]");
+    if (!form) return;
+    event.preventDefault();
+    const action = form.dataset.lifeForm;
+    const data = formData(form);
+    const submit = form.querySelector('button[type="submit"]');
+    submit?.setAttribute("disabled", "");
+    setMessage("");
+    try {
+      if (action === "task") await api("/api/life/tasks", { method: "POST", body: JSON.stringify(data) });
+      if (action === "area") await api("/api/life/areas", { method: "POST", body: JSON.stringify(data) });
+      if (action === "goal") await api("/api/life/goals", { method: "POST", body: JSON.stringify(data) });
+      if (action === "training-day") await api("/api/life/training/days", { method: "POST", body: JSON.stringify(data) });
+      if (action === "exercise") await api(`/api/life/training/days/${form.dataset.trainingDay}/exercises`, { method: "POST", body: JSON.stringify(data) });
+      if (action === "workout") await api("/api/life/workouts", { method: "POST", body: JSON.stringify(data) });
+      if (action === "workout-sets") {
+        const updates = [...form.querySelectorAll("[data-set]")].map((row) => ({ id: row.dataset.set, weight_kg: row.querySelector('[name="weight_kg"]').value, reps: row.querySelector('[name="reps"]').value, rir: row.querySelector('[name="rir"]').value, discomfort: row.querySelector('[name="discomfort"]').value }));
+        await Promise.all(updates.map((set) => api(`/api/life/workout-sets/${set.id}`, { method: "PATCH", body: JSON.stringify(set) })));
+        const extra = formData(form);
+        await api(`/api/life/workouts/${form.dataset.workout}`, { method: "PATCH", body: JSON.stringify({ wellbeing: extra.wellbeing, notes: extra.notes }) });
+      }
+      if (action === "product") await api("/api/life/products", { method: "POST", body: JSON.stringify(data) });
+      if (action === "meal") await api("/api/life/meals", { method: "POST", body: JSON.stringify(data) });
+      if (action === "nutrition-checkin") await api("/api/life/nutrition/checkin", { method: "POST", body: JSON.stringify(data) });
+      if (action === "nutrition-targets") await api("/api/life/nutrition/targets", { method: "POST", body: JSON.stringify(data) });
+      if (action === "body-metric") await api("/api/life/body-metrics", { method: "POST", body: JSON.stringify(data) });
+      if (action === "income") await api("/api/life/income", { method: "POST", body: JSON.stringify(data) });
+      if (action === "profile") {
+        const payload = await api("/api/auth/profile", { method: "PATCH", body: JSON.stringify(data) });
+        app().state.user = payload.user;
+      }
+      if (action === "password") {
+        if (data.new_password !== data.password_confirm) throw new Error("Нові паролі не співпадають");
+        const payload = await api("/api/auth/change-password", { method: "POST", body: JSON.stringify(data) });
+        app().state.sessionToken = payload.session_token;
+        sessionStorage.setItem("life-session-token", payload.session_token);
+      }
+      if (action === "member") await api("/api/auth/register", { method: "POST", body: JSON.stringify(data) });
+      setMessage("Збережено", "success");
+      await render(state.view);
+    } catch (error) {
+      setMessage(error.message || "Не вдалося зберегти", "error");
+    } finally {
+      submit?.removeAttribute("disabled");
+    }
+  });
+
+  window.SkyBreezeLife = { activate };
+  window.addEventListener("skybreeze-app-ready", () => {
+    if (app().state.user) activate(app().state.section);
+  });
+  if (app()?.state?.user) activate(app().state.section);
+})();
