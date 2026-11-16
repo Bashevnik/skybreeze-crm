@@ -104,7 +104,7 @@
 .lead-main .quick-field {
   width: max-content;
   max-width: 100%;
-  margin-top: 8px;
+  margin-top: 11px;
 }
 .quick-select,
 .field select {
@@ -278,7 +278,63 @@
   font-size: 10px;
 }
 .drawer {
-  width: min(780px, calc(100vw - 24px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(840px, calc(100vw - 36px));
+  height: min(920px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  padding-bottom: 0;
+  overflow: hidden;
+  /* Avoid Safari's overlay scrollbar sitting on top of form controls. */
+  scrollbar-gutter: stable;
+}
+.drawer-head {
+  position: relative;
+  z-index: 3;
+  min-height: 70px;
+  padding-right: 26px;
+  padding-left: 26px;
+  box-shadow: 0 1px 0 rgba(29, 53, 84, 0.03);
+}
+.drawer-head .back {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #d8e3ef;
+  border-radius: 10px;
+  color: #334965;
+  font-size: 24px;
+  line-height: 1;
+}
+.drawer-head .back:hover,
+.drawer-head .back:focus-visible {
+  border-color: #88add1;
+  background: #f1f8ff;
+  outline: none;
+}
+#drawer-content {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+.lead-row {
+  min-height: 106px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.lead-row:hover {
+  box-shadow: inset 3px 0 0 #72d6c5;
+}
+.lead-main {
+  gap: 8px;
+}
+.lead-main small {
+  line-height: 1.45;
 }
 .lead-identity {
   padding: 30px 30px 22px;
@@ -428,6 +484,8 @@
     right: max(8px, env(safe-area-inset-right));
     bottom: max(8px, env(safe-area-inset-bottom));
     width: min(720px, calc(100vw - 16px));
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
     border-radius: 14px;
   }
   .lead-identity {
@@ -435,6 +493,11 @@
   }
   .lead-identity h2 {
     font-size: 25px;
+  }
+  .drawer-head {
+    min-height: 62px;
+    padding-right: 20px;
+    padding-left: 20px;
   }
   .asset-card {
     margin: 16px 22px 0;
@@ -464,6 +527,9 @@
   }
   .lead-row {
     grid-template-columns: minmax(0, 1fr) auto 20px;
+    min-height: 112px;
+    padding-top: 17px;
+    padding-bottom: 17px;
   }
   .lead-source-cell {
     display: flex !important;
@@ -474,6 +540,8 @@
   .drawer {
     inset: 0;
     width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
     border-radius: 0;
   }
   .workflow-strip {
