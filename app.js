@@ -83,6 +83,9 @@ function renderAccount() {
     : "Увійти";
   button.title = user ? `Вийти з ${user.email}` : "Увійти";
 }
+function passwordField({ name, id, autocomplete, label, minLength = "", placeholder = "", value = "" }) {
+  return `<label>${label}<span class="password-field"><input id="${id}" name="${name}" type="password"${minLength ? ` minlength="${minLength}"` : ""} autocomplete="${autocomplete}"${placeholder ? ` placeholder="${escapeHtml(placeholder)}"` : ""}${value ? ` value="${escapeHtml(value)}"` : ""} required><button class="password-toggle" type="button" data-password-toggle="${id}" aria-controls="${id}" aria-pressed="false" title="Показати">Показати</button></span></label>`;
+}
 function authTemplate(mode = "login") {
   const bootstrap = Boolean(state.authConfig?.bootstrap_required);
   const recoveryEnabled = Boolean(
@@ -93,9 +96,10 @@ function authTemplate(mode = "login") {
     return `<form class="auth-form" id="auth-reset-form">
       <p class="eyebrow">БЕЗПЕКА</p><h1>Новий пароль</h1>
       <p>Створи новий пароль для свого акаунта.</p>
-      <label>Новий пароль<input name="password" type="password" minlength="12" autocomplete="new-password" required></label>
-      <label>Повтори пароль<input name="password_confirm" type="password" minlength="12" autocomplete="new-password" required></label>
+      ${passwordField({ name: "password", id: "reset-password", label: "Новий пароль", minLength: 12, autocomplete: "new-password" })}
+      ${passwordField({ name: "password_confirm", id: "reset-password-confirm", label: "Повтори пароль", minLength: 12, autocomplete: "new-password" })}
       <button class="primary" type="submit">Зберегти новий пароль</button>
+      <p class="auth-browser-hint">Після зміни браузер може запропонувати зберегти новий пароль.</p>
       <button class="auth-link" type="button" data-auth-mode="login">Повернутись до входу</button>
     </form>`;
   }
@@ -109,23 +113,24 @@ function authTemplate(mode = "login") {
     </form>`;
   }
   if (bootstrap || mode === "register") {
-    return `<form class="auth-form" id="auth-register-form">
+    return `<form class="auth-form" id="auth-register-form" autocomplete="on">
       <p class="eyebrow">ПЕРШИЙ ЗАПУСК</p><h1>Створи акаунт власника</h1>
       <p>Існуючі ліди будуть безпечно прив’язані до цього акаунта. Ключ CRM потрібен тільки один раз для підтвердження власності.</p>
       <label>Ім’я<input name="name" autocomplete="name" maxlength="120" required></label>
       <label>Email<input name="email" type="email" autocomplete="email" required></label>
-      <label>Пароль<input name="password" type="password" minlength="12" autocomplete="new-password" required></label>
-      <label>Ключ доступу поточної CRM<input name="bootstrap_token" type="password" autocomplete="off" placeholder="Не зберігається у браузері" value="${escapeHtml(state.legacyToken)}" required></label>
+      ${passwordField({ name: "password", id: "register-password", label: "Пароль", minLength: 12, autocomplete: "new-password" })}
+      ${passwordField({ name: "bootstrap_token", id: "crm-bootstrap-key", label: "Ключ первинного доступу CRM", autocomplete: "off", placeholder: "Не зберігається у браузері", value: state.legacyToken })}
       <button class="primary" type="submit">Створити захищений акаунт</button>
-      <small>Пароль — від 12 символів. Ключ CRM буде видалено з сесії після успішного входу.</small>
+      <small>Пароль — від 12 символів. Браузер запропонує зберегти саме пароль після створення акаунта. Ключ CRM не зберігається та буде видалений із сесії після входу.</small>
     </form>`;
   }
-  return `<form class="auth-form" id="auth-login-form">
+  return `<form class="auth-form" id="auth-login-form" autocomplete="on">
     <p class="eyebrow">SKYBREEZE · ОСОБИСТА CRM</p><h1>Радий бачити</h1>
     <p>Увійди, щоб побачити лише свої дані та продовжити роботу.</p>
     <label>Email<input name="email" type="email" autocomplete="email" required></label>
-    <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
+    ${passwordField({ name: "password", id: "login-password", label: "Пароль", autocomplete: "current-password" })}
     <button class="primary" type="submit">Увійти</button>
+    <p class="auth-browser-hint">Після успішного входу Chrome запропонує зберегти пароль — натисни «Зберегти».</p>
     <button class="auth-link" type="button" data-auth-mode="forgot">Не пам’ятаю пароль</button>
   </form>`;
 }
@@ -661,6 +666,17 @@ document.addEventListener("submit", async (event) => {
   }
 });
 document.addEventListener("click", async (event) => {
+  const passwordToggle = event.target.closest("[data-password-toggle]");
+  if (passwordToggle) {
+    const input = document.getElementById(passwordToggle.dataset.passwordToggle);
+    if (!input) return;
+    const isVisible = input.type === "text";
+    input.type = isVisible ? "password" : "text";
+    passwordToggle.textContent = isVisible ? "Показати" : "Сховати";
+    passwordToggle.title = isVisible ? "Показати" : "Сховати";
+    passwordToggle.setAttribute("aria-pressed", String(!isVisible));
+    return;
+  }
   const mode = event.target.closest("[data-auth-mode]")?.dataset.authMode;
   if (mode) return showAuthGate({ mode });
   if (event.target.closest("#account-btn")) {
