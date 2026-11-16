@@ -460,6 +460,42 @@ select {
   border-color: #4e93ee;
   box-shadow: 0 0 0 3px rgba(78, 147, 238, 0.13);
 }
+.password-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+.password-field input {
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.password-toggle {
+  min-width: 86px;
+  border: 1px solid #d8e1ec;
+  border-left: 0;
+  border-radius: 0 10px 10px 0;
+  padding: 0 12px;
+  background: #f7faff;
+  color: #2769ba;
+  font: 800 11px Manrope;
+  cursor: pointer;
+}
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  background: #eaf4ff;
+  outline: 0;
+}
+.password-field:focus-within .password-toggle {
+  border-color: #4e93ee;
+  box-shadow: 3px 0 0 rgba(78, 147, 238, 0.13);
+}
+.auth-browser-hint {
+  margin: -2px 0 0 !important;
+  color: #718098 !important;
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+}
 .auth-form .primary {
   min-height: 46px;
   margin-top: 4px;
