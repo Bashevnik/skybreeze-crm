@@ -3,7 +3,7 @@ const state = {
   sessionToken: sessionStorage.getItem("life-session-token") || "",
   user: null,
   authConfig: null,
-  section: localStorage.getItem("life-active-section") || "dashboard",
+  section: location.hash.startsWith("#/crm/") ? "crm" : (localStorage.getItem("life-active-section") || "dashboard"),
   tab: "all",
   view: "table",
   page: 1,
