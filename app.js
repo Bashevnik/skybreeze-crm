@@ -147,7 +147,6 @@ async function acceptSession(payload) {
   state.sessionToken = payload.session_token;
   state.user = payload.user || state.user;
   sessionStorage.setItem("life-session-token", state.sessionToken);
-  sessionStorage.removeItem("crm-write-token");
   renderAccount();
   hideAuthGate();
   await refresh();
@@ -230,20 +229,25 @@ function normalizeUkrainianPhone(value = "") {
   }
   return "";
 }
-function isExternalUrl(value = "") {
+function normalizeExternalUrl(value = "") {
+  const raw = String(value || "").trim().replace(/^[([{'"`]+|[)\]}',.;!?]+$/g, "");
+  if (!raw) return "";
   try {
-    return ["http:", "https:"].includes(new URL(String(value).trim()).protocol);
+    const candidate = /^[a-z][a-z\d+.-]*:/i.test(raw) ? raw : `https://${raw.replace(/^\/\/+/, "")}`;
+    const url = new URL(candidate);
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : "";
   } catch {
-    return false;
+    return "";
   }
 }
+function isExternalUrl(value = "") { return Boolean(normalizeExternalUrl(value)); }
 function extractUrls(...values) {
   const found = [];
   for (const value of values.flat()) {
-    const matches = String(value || "").match(/https?:\/\/[^\s<>"']+/gi) || [];
+    const matches = String(value || "").match(/(?:https?:\/\/)?(?:www\.)?(?:[a-z\d-]+\.)+(?:ua|com|net|org|me|io|app|site|biz|info)(?:[/?#][^\s<>"']*)?/gi) || [];
     for (const match of matches) {
-      const clean = match.replace(/[),.;!?]+$/g, "");
-      if (isExternalUrl(clean) && !found.includes(clean)) found.push(clean);
+      const clean = normalizeExternalUrl(match);
+      if (clean && !found.includes(clean)) found.push(clean);
     }
   }
   return found;
@@ -282,7 +286,7 @@ function sourceLinksMarkup(lead, limit = Infinity) {
   return links
     .map(
       ({ url, label, cls }) =>
-        `<a class="source-chip ${cls}" href="${escapeHtml(url)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">${label} ↗</a>`,
+        `<a class="source-chip ${cls}" href="${escapeHtml(url)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">${label}</a>`,
     )
     .join("");
 }
@@ -299,7 +303,7 @@ function contactMarkup(lead) {
     : normalizedPhone
       ? `https://t.me/${normalizedPhone}`
       : "";
-  return `<span class="contact-stack"><span>${escapeHtml(display)}</span>${telegramUrl ? `<a href="${escapeHtml(telegramUrl)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Написати в TG ↗</a>` : ""}</span>`;
+  return `<span class="contact-stack"><span>${escapeHtml(display)}</span>${telegramUrl ? `<a href="${escapeHtml(telegramUrl)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Написати в Telegram</a>` : ""}</span>`;
 }
 function isContacted(lead) {
   const status = String(lead.outreach_status || "").trim().toLowerCase();
@@ -326,8 +330,9 @@ function messagePreview(lead) {
   return lead.sent_message || lead.message_variant || lead.extra_message || "—";
 }
 function materialMarkup(lead) {
-  if (!isExternalUrl(lead.attachment)) return '<span class="muted">Немає</span>';
-  return `<a class="material-link" href="${escapeHtml(lead.attachment)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Фото / концепт ↗</a>`;
+  const attachment = normalizeExternalUrl(lead.attachment);
+  if (!attachment) return '<span class="muted">Немає</span>';
+  return `<a class="material-link" href="${escapeHtml(attachment)}" target="_blank" rel="noreferrer" onclick="event.stopPropagation()">Фото / концепт</a>`;
 }
 function workflowTone(field, value = "") {
   const normalized = String(value).trim().toLowerCase();
@@ -539,9 +544,10 @@ async function openLead(leadId) {
     : normalizedPhone
       ? `https://t.me/${normalizedPhone}`
       : "";
-  const contactActions = `${normalizedPhone ? `<a class="contact-action" href="tel:${escapeHtml(normalizedPhone)}">Подзвонити</a>` : ""}${telegramUrl ? `<a class="contact-action" href="${escapeHtml(telegramUrl)}" target="_blank" rel="noreferrer">Написати в TG ↗</a>` : ""}`;
-  const attachment = isExternalUrl(lead.attachment)
-    ? `<section class="asset-card"><div><p class="eyebrow">МАТЕРІАЛИ</p><h3>Що прикріплено до ліда</h3><a href="${escapeHtml(lead.attachment)}" target="_blank" rel="noreferrer">Відкрити фото / скрин або концепт ↗</a></div><img src="${escapeHtml(lead.attachment)}" alt="Матеріал для ${escapeHtml(lead.name)}" onerror="this.remove()"></section>`
+  const contactActions = `${normalizedPhone ? `<a class="contact-action" href="tel:${escapeHtml(normalizedPhone)}">Подзвонити</a>` : ""}${telegramUrl ? `<a class="contact-action" href="${escapeHtml(telegramUrl)}" target="_blank" rel="noreferrer">Написати в Telegram</a>` : ""}`;
+  const attachmentUrl = normalizeExternalUrl(lead.attachment);
+  const attachment = attachmentUrl
+    ? `<section class="asset-card"><div><p class="eyebrow">МАТЕРІАЛИ</p><h3>Що прикріплено до ліда</h3><a href="${escapeHtml(attachmentUrl)}" target="_blank" rel="noreferrer">Відкрити фото, скрин або концепт</a></div><img src="${escapeHtml(attachmentUrl)}" alt="Матеріал для ${escapeHtml(lead.name)}" onerror="this.remove()"></section>`
     : `<section class="asset-card empty-asset"><div><p class="eyebrow">МАТЕРІАЛИ</p><h3>Фото або концепт ще не прикріплено</h3><p>Коли матеріал з’явиться у таблиці, він буде показаний тут.</p></div></section>`;
   $("#drawer-content").innerHTML =
     `<section class="lead-identity"><p class="eyebrow">ПРОФІЛ БІЗНЕСУ · ${escapeHtml(lead.source_tab)}</p><h2>${escapeHtml(lead.name)}</h2><p>${escapeHtml(lead.direction || "Ніша не вказана")}</p><div class="lead-primary-data"><div><small>OLX / САЙТ / СОЦМЕРЕЖА</small><div class="source-chips">${sourceLinksMarkup(lead)}</div></div><div><small>КОНТАКТ</small><strong>${escapeHtml(contact)}</strong><div class="contact-actions">${contactActions || '<span class="muted">Немає прямого контакту</span>'}</div></div></div></section>
@@ -777,7 +783,6 @@ $("#settings-btn").onclick = () => {
 $("#save-settings").onclick = () => {
   state.api = $("#api-url").value.trim();
   localStorage.setItem("crm-api-url", state.api);
-  sessionStorage.removeItem("crm-write-token");
   bootstrapApp();
 };
 window.SkyBreezeApp = { state, request, refreshCrm: refresh, escapeHtml };
