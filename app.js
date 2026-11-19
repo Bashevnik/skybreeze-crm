@@ -3,7 +3,7 @@ const state = {
   sessionToken: sessionStorage.getItem("life-session-token") || "",
   user: null,
   authConfig: null,
-  section: location.hash.startsWith("#/crm/") ? "crm" : (localStorage.getItem("life-active-section") || "dashboard"),
+  section: location.hash.startsWith("#/crm/") ? "crm" : "today",
   tab: "all",
   view: "table",
   page: 1,
@@ -149,7 +149,6 @@ async function acceptSession(payload) {
   sessionStorage.setItem("life-session-token", state.sessionToken);
   renderAccount();
   hideAuthGate();
-  await refresh();
   window.SkyBreezeLife?.activate(state.section);
 }
 async function bootstrapApp() {
@@ -163,7 +162,6 @@ async function bootstrapApp() {
     state.user = session.user;
     renderAccount();
     hideAuthGate();
-    await refresh();
     window.SkyBreezeLife?.activate(state.section);
   } catch (error) {
     showAuthGate({
