@@ -141,11 +141,15 @@
     const dialog = document.querySelector("#simple-editor-dialog"); dialog.addEventListener("close", () => dialog.remove(), { once: true }); dialog.showModal?.();
   }
   async function openDailyCheckin(mode = "morning") {
-    document.querySelector("#daily-checkin-dialog")?.remove(); const data = await api(`/api/life/daily-checkin?date=${today()}`); const c = data.checkin || {}; const morning = c.morning || {}; const evening = c.evening || {}; const priorities = morning.priorities || [];
-    const fields = mode === "evening" ? `<label>Що вдалося виконати?<textarea name="completed" rows="2">${escape(evening.completed || "")}</textarea></label><label>Що залишилось і чому?<textarea name="unfinished" rows="2">${escape(evening.unfinished || "")}</textarea></label><label>Що перенести на завтра?<textarea name="tomorrow" rows="2">${escape(evening.tomorrow || "")}</textarea></label><div class="form-row"><label>Робота, хв<input name="work_minutes" type="number" value="${evening.work_minutes ?? ""}"></label><label>Оцінка дня 1–10<input name="day_rating" type="number" min="1" max="10" value="${evening.day_rating ?? ""}"></label></div><label>Навчання / тренування / прогулянка<textarea name="activity" rows="2">${escape(evening.activity || "")}</textarea></label><label>План лягти спати<input name="planned_bedtime" type="time" value="${escape(evening.planned_bedtime || "")}"></label>` : `<div class="form-row"><label>Прокинувся<input name="woke_at" type="time" value="${escape(morning.woke_at || "")}"></label><label>Ліг спати<input name="bedtime" type="time" value="${escape(morning.bedtime || "")}"></label></div><div class="form-row"><label>Якість сну 1–10<input name="sleep_quality" type="number" min="1" max="10" value="${morning.sleep_quality ?? ""}"></label><label>Енергія 1–10<input name="energy" type="number" min="1" max="10" value="${morning.energy ?? ""}"></label></div><label>Сніданок<textarea name="breakfast" rows="2">${escape(morning.breakfast || "")}</textarea></label>${[0,1,2].map((index) => `<label>Пріоритет ${index + 1}<input name="priority_${index}" list="checkin-task-options" value="${escape(priorities[index] || "")}"></label>`).join("")}<datalist id="checkin-task-options">${(data.tasks || []).map((task) => `<option value="${escape(task.title)}">`).join("")}</datalist>`;
-    document.body.insertAdjacentHTML("beforeend", `<dialog class="task-editor-dialog" id="daily-checkin-dialog"><form class="task-editor" data-life-form="daily-checkin" data-checkin-mode="${mode}"><header><div><p class="eyebrow">${mode === "evening" ? "ВЕЧІР" : "РАНОК"} · <span id="checkin-progress">Крок 1 із 3</span></p><h2>${mode === "evening" ? "Завершити день" : "Почати день"}</h2></div><button class="icon-button" type="button" data-checkin-close aria-label="Закрити">×</button></header><input type="hidden" name="recorded_on" value="${data.recorded_on}">${fields}<footer><button class="ghost" type="button" data-checkin-back hidden>Назад</button><button class="ghost" type="button" data-checkin-snooze>Пізніше</button><span></span><button class="primary" type="button" data-checkin-next>Далі</button><button class="primary" type="submit" hidden>Зберегти</button></footer></form></dialog>`);
+    document.querySelector("#daily-checkin-dialog")?.remove();
+    const [data, taskData] = await Promise.all([api(`/api/life/daily-checkin?date=${today()}`), api("/api/life/tasks")]);
+    const c = data.checkin || {}; const morning = c.morning || {}; const evening = c.evening || {}; const priorities = morning.priorities || [];
+    state.checkinTasks = (taskData.tasks || []).filter((task) => !["done", "archived"].includes(task.status));
+    const options = (selected = "") => `<option value="">Обери задачу</option>${selected && !state.checkinTasks.some((task) => task.title === selected) ? `<option value="${escape(selected)}" selected>${escape(selected)} · раніше обрано</option>` : ""}${state.checkinTasks.map((task) => `<option value="${escape(task.title)}"${task.title === selected ? " selected" : ""}>${escape(task.title)}</option>`).join("")}`;
+    const fields = mode === "evening" ? `<label>Що вдалося виконати?<textarea name="completed" rows="2">${escape(evening.completed || "")}</textarea></label><label>Що залишилось і чому?<textarea name="unfinished" rows="2">${escape(evening.unfinished || "")}</textarea></label><label>Що перенести на завтра?<textarea name="tomorrow" rows="2">${escape(evening.tomorrow || "")}</textarea></label><div class="form-row"><label>Робота, хв<input name="work_minutes" type="number" value="${evening.work_minutes ?? ""}"></label><label>Оцінка дня 1–10<input name="day_rating" type="number" min="1" max="10" value="${evening.day_rating ?? ""}"></label></div><label>Навчання / тренування / прогулянка<textarea name="activity" rows="2">${escape(evening.activity || "")}</textarea></label><label>План лягти спати<input name="planned_bedtime" type="time" value="${escape(evening.planned_bedtime || "")}"></label>` : `<div class="form-row"><label>Прокинувся<input name="woke_at" type="time" value="${escape(morning.woke_at || "")}"></label><label>Ліг спати<input name="bedtime" type="time" value="${escape(morning.bedtime || "")}"></label></div><div class="form-row"><label>Якість сну 1–10<input name="sleep_quality" type="number" min="1" max="10" value="${morning.sleep_quality ?? ""}"></label><label>Енергія 1–10<input name="energy" type="number" min="1" max="10" value="${morning.energy ?? ""}"></label></div><label>Сніданок (нотатка)<textarea name="breakfast" rows="2">${escape(morning.breakfast || "")}</textarea></label><div class="checkin-picker"><label>Знайти задачу<input type="search" data-checkin-search placeholder="Пошук серед усіх активних задач"></label><p class="form-help">Обери до трьох головних задач. Інші залишаться у Планері.</p>${[0,1,2].map((index) => `<label>Пріоритет ${index + 1}<select name="priority_${index}">${options(priorities[index])}</select></label>`).join("")}<div class="checkin-extra"><label>Ще одна задача<input data-checkin-extra maxlength="220" placeholder="Що додати на сьогодні"></label><button class="ghost" type="button" data-checkin-add-task>Додати задачу</button></div><p class="form-help" data-checkin-task-feedback role="status"></p></div>`;
+    document.body.insertAdjacentHTML("beforeend", `<dialog class="task-editor-dialog" id="daily-checkin-dialog"><form class="task-editor" data-life-form="daily-checkin" data-checkin-mode="${mode}"><header><div><p class="eyebrow">${mode === "evening" ? "ВЕЧІР" : "РАНОК"} · <span id="checkin-progress">Крок 1 із 3</span></p><h2>${mode === "evening" ? "Завершити день" : "Почати день"}</h2></div><button class="icon-button" type="button" data-checkin-close aria-label="Закрити">×</button></header><input type="hidden" name="recorded_on" value="${data.recorded_on}">${fields}<p class="form-help checkin-save-feedback" role="status"></p><footer><button class="ghost" type="button" data-checkin-back hidden>Назад</button><button class="ghost" type="button" data-checkin-snooze>Пізніше</button><span></span><button class="primary" type="button" data-checkin-next>Далі</button><button class="primary" type="submit" hidden>Зберегти</button></footer></form></dialog>`);
     const form = document.querySelector('#daily-checkin-dialog form');
-    const nodes = [...form.children].filter((node) => node.matches('label, .form-row, datalist'));
+    const nodes = [...form.children].filter((node) => node.matches('label, .form-row, .checkin-picker'));
     const groups = mode === "evening" ? [nodes.slice(0, 2), nodes.slice(2, 4), nodes.slice(4)] : [nodes.slice(0, 1), nodes.slice(1, 3), nodes.slice(3)];
     const footer = form.querySelector('footer');
     groups.forEach((group, index) => { const section = document.createElement('section'); section.className = 'checkin-step'; section.dataset.checkinStep = index; section.hidden = index !== 0; group.forEach((node) => section.append(node)); footer.before(section); });
@@ -162,6 +166,19 @@
     form.querySelector('[data-checkin-back]').hidden = step === 0;
     form.querySelector('[data-checkin-next]').hidden = step === 2;
     form.querySelector('button[type="submit"]').hidden = step !== 2;
+  }
+  function filterCheckinTasks() {
+    const form = document.querySelector('#daily-checkin-dialog form');
+    if (!form) return;
+    const query = form.querySelector('[data-checkin-search]')?.value.trim().toLocaleLowerCase() || "";
+    form.querySelectorAll('[name^="priority_"]').forEach((select) => {
+      const selected = select.value;
+      const matches = (state.checkinTasks || []).filter((task) => !query || task.title.toLocaleLowerCase().includes(query)).slice(0, query ? 80 : 500);
+      select.replaceChildren(new Option("Обери задачу", ""));
+      if (selected && !matches.some((task) => task.title === selected)) select.add(new Option(`${selected} · обрано`, selected));
+      matches.forEach((task) => select.add(new Option(task.title, task.title)));
+      select.value = selected;
+    });
   }
   function setMessage(message = "", tone = "") {
     const node = $("#life-form-message");
@@ -539,6 +556,26 @@
     if (checkinOpen) return openDailyCheckin(checkinOpen.dataset.checkinOpen);
     if (event.target.closest('[data-checkin-next]')) return changeCheckinStep(1);
     if (event.target.closest('[data-checkin-back]')) return changeCheckinStep(-1);
+    const addCheckinTask = event.target.closest('[data-checkin-add-task]');
+    if (addCheckinTask) {
+      const form = addCheckinTask.closest('form'); const input = form.querySelector('[data-checkin-extra]');
+      const title = input.value.trim(); const feedback = form.querySelector('[data-checkin-task-feedback]');
+      if (!title) { feedback.textContent = 'Напиши назву задачі.'; return input.focus(); }
+      if ((state.checkinTasks || []).some((task) => task.title.toLocaleLowerCase() === title.toLocaleLowerCase())) { feedback.textContent = 'Така задача вже є. Знайди її у списку.'; return; }
+      addCheckinTask.disabled = true; feedback.textContent = 'Зберігаємо задачу…';
+      try {
+        const task = await api('/api/life/tasks', { method: 'POST', body: JSON.stringify({ title, status: 'today', priority: 'normal' }) });
+        state.checkinTasks.push(task);
+        form.querySelector('[data-checkin-search]').value = '';
+        filterCheckinTasks();
+        const emptySelect = [...form.querySelectorAll('[name^="priority_"]')].find((select) => !select.value);
+        if (emptySelect) emptySelect.value = task.title;
+        input.value = ''; feedback.textContent = 'Задачу збережено: Планер → Сьогодні.';
+        if (state.view !== 'crm') render(state.view).catch(() => {});
+      } catch (error) { feedback.textContent = error.message || 'Не вдалося зберегти задачу. Текст залишився у полі.'; }
+      finally { addCheckinTask.disabled = false; }
+      return;
+    }
     if (event.target.closest("[data-checkin-close]")) return document.querySelector("#daily-checkin-dialog")?.close();
     if (event.target.closest("[data-checkin-snooze]")) {
       await api("/api/life/daily-checkin", { method: "POST", body: JSON.stringify({ mode: "snooze", snoozed_until: new Date(Date.now() + 60 * 60 * 1000).toISOString() }) });
@@ -654,6 +691,7 @@
   });
 
   document.addEventListener("input", (event) => {
+    if (event.target.matches('[data-checkin-search]')) { filterCheckinTasks(); return; }
     const picker = event.target.closest('input[type="color"][name="color"]');
     if (!picker) return;
     const form = picker.closest("form[data-life-form='area']");
@@ -698,7 +736,10 @@
       }
       if (action === "daily-checkin") {
         const priorities = [data.priority_0, data.priority_1, data.priority_2].filter(Boolean); delete data.priority_0; delete data.priority_1; delete data.priority_2;
+        if (form.dataset.checkinMode === 'morning' && (priorities.length !== 3 || new Set(priorities).size !== 3)) throw new Error('Обери три різні задачі для сьогоднішнього плану.');
         await api("/api/life/daily-checkin", { method: "POST", body: JSON.stringify({ ...data, mode: form.dataset.checkinMode, priorities }) });
+        const confirmed = await api(`/api/life/daily-checkin?date=${data.recorded_on}`);
+        if (!confirmed.checkin || (form.dataset.checkinMode === 'morning' && JSON.stringify(confirmed.checkin.morning?.priorities) !== JSON.stringify(priorities))) throw new Error('Не вдалося підтвердити збереження плану. Перевір його перед повторною спробою.');
         document.querySelector("#daily-checkin-dialog")?.close();
       }
       if (action === "area") await api("/api/life/areas", { method: "POST", body: JSON.stringify(data) });
@@ -740,6 +781,7 @@
       showSaved(action, { ...data, id: form.dataset.taskId, checkinMode: form.dataset.checkinMode }, savedRecord);
       if (state.view !== "crm") render(state.view).catch(() => {});
     } catch (error) {
+      if (action === 'daily-checkin') { const feedback = form.querySelector('.checkin-save-feedback'); if (feedback) feedback.textContent = error.message || 'Не вдалося зберегти. Введені дані залишилися у формі.'; }
       setMessage(error.message || "Не вдалося зберегти", "error");
     } finally {
       submit?.removeAttribute("disabled");
