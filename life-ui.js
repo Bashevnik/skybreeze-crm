@@ -91,6 +91,11 @@
     document.body.insertAdjacentHTML("beforeend", editorShell(kind, id, "Змінити запис", fields));
     const dialog = document.querySelector("#simple-editor-dialog"); dialog.addEventListener("close", () => dialog.remove(), { once: true }); dialog.showModal?.();
   }
+  async function openDailyCheckin(mode = "morning") {
+    document.querySelector("#daily-checkin-dialog")?.remove(); const data = await api("/api/life/daily-checkin"); const c = data.checkin || {}; const morning = c.morning || {}; const evening = c.evening || {}; const priorities = morning.priorities || [];
+    const fields = mode === "evening" ? `<label>Що вдалося виконати?<textarea name="completed" rows="2">${escape(evening.completed || "")}</textarea></label><label>Що залишилось і чому?<textarea name="unfinished" rows="2">${escape(evening.unfinished || "")}</textarea></label><label>Що перенести на завтра?<textarea name="tomorrow" rows="2">${escape(evening.tomorrow || "")}</textarea></label><div class="form-row"><label>Робота, хв<input name="work_minutes" type="number" value="${evening.work_minutes ?? ""}"></label><label>Оцінка дня 1–10<input name="day_rating" type="number" min="1" max="10" value="${evening.day_rating ?? ""}"></label></div><label>Навчання / тренування / прогулянка<textarea name="activity" rows="2">${escape(evening.activity || "")}</textarea></label><label>План лягти спати<input name="planned_bedtime" type="time" value="${escape(evening.planned_bedtime || "")}"></label>` : `<div class="form-row"><label>Прокинувся<input name="woke_at" type="time" value="${escape(morning.woke_at || "")}"></label><label>Ліг спати<input name="bedtime" type="time" value="${escape(morning.bedtime || "")}"></label></div><div class="form-row"><label>Якість сну 1–10<input name="sleep_quality" type="number" min="1" max="10" value="${morning.sleep_quality ?? ""}"></label><label>Енергія 1–10<input name="energy" type="number" min="1" max="10" value="${morning.energy ?? ""}"></label></div><label>Сніданок<textarea name="breakfast" rows="2">${escape(morning.breakfast || "")}</textarea></label>${[0,1,2].map((index) => `<label>Пріоритет ${index + 1}<input name="priority_${index}" list="checkin-task-options" value="${escape(priorities[index] || "")}"></label>`).join("")}<datalist id="checkin-task-options">${(data.tasks || []).map((task) => `<option value="${escape(task.title)}">`).join("")}</datalist>`;
+    document.body.insertAdjacentHTML("beforeend", `<dialog class="task-editor-dialog" id="daily-checkin-dialog"><form class="task-editor" data-life-form="daily-checkin" data-checkin-mode="${mode}"><header><div><p class="eyebrow">DAILY CHECK-IN</p><h2>${mode === "evening" ? "Завершити день" : "Почати день"}</h2></div><button class="icon-button" type="button" data-checkin-close>×</button></header><input type="hidden" name="recorded_on" value="${data.recorded_on}">${fields}<footer><button class="ghost" type="button" data-checkin-snooze>Пізніше</button><span></span><button class="primary" type="submit">Зберегти</button></footer></form></dialog>`); document.querySelector("#daily-checkin-dialog").showModal?.();
+  }
   function setMessage(message = "", tone = "") {
     const node = $("#life-form-message");
     if (!node) return;
@@ -117,7 +122,7 @@
       <div class="life-dashboard-grid lower"><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ТРЕНУВАННЯ</p><h2>${data.today_workout ? escape(data.today_workout.title) : "На сьогодні не заплановано"}</h2></div><button class="ghost" type="button" data-life-open="training">Журнал</button></div><p class="life-quiet">${data.today_workout ? `${escape(statusLabel[data.today_workout.status])} · ${formatDate(data.today_workout.scheduled_date)}` : "План тренування з’явиться після того, як ти створиш шаблон або заплануєш сесію."}</p></section>
       <section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ВАГА</p><h2>${data.weights?.[0]?.weight_kg ? `${number(data.weights[0].weight_kg)} кг` : "Немає записів"}</h2></div><button class="ghost" type="button" data-life-open="nutrition">Харчування</button></div><p class="life-quiet">${data.weights?.length > 1 ? `${data.weights.length} останніх записів доступні в модулі харчування.` : "Фіксуй факт вимірювання без інтерпретації."}</p></section></div>
       <div class="life-dashboard-grid lower"><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">НАПРЯМОК</p><h2>Цілі</h2></div><button class="ghost" type="button" data-life-open="planner">Планер</button></div>${data.active_goals?.length ? `<div class="fact-table">${data.active_goals.map((goal) => `<div><b>${escape(goal.title)}</b><span>${escape({ year: "Рік", quarter: "90 днів", month: "Місяць" }[goal.period] || goal.period)}</span><small>${goal.target_value != null ? `${number(goal.current_value)} / ${number(goal.target_value)} ${escape(goal.unit)}` : "Без числового показника"}</small></div>`).join("")}</div>` : '<p class="life-quiet">Почни з однієї цілі на рік та одного результату на 90 днів.</p>'}</section><section class="life-panel"><div class="life-section-heading"><div><p class="eyebrow">ФІНАНСИ ТИЖНЯ</p><h2>Бізнес і накопичення</h2></div><button class="ghost" type="button" data-life-open="finance">Фінанси</button></div>${Object.entries(data.finance?.business || {}).length ? Object.entries(data.finance.business).map(([currency, values]) => `<p class="life-quiet"><b>${escape(currency)}</b> · дохід ${money(values.income, currency)} · витрати ${money(values.expense, currency)} · прибуток ${money(values.profit, currency)}</p>`).join("") : '<p class="life-quiet">Фактичних бізнес-операцій за тиждень ще немає.</p>'}${data.savings_goals?.length ? `<div class="fact-table">${data.savings_goals.map((goal) => `<div><b>${escape(goal.title)}</b><span>${money(goal.current_amount, goal.currency)} з ${money(goal.target_amount, goal.currency)}</span></div>`).join("")}</div>` : ""}</section></div>`,
-      `<button class="ghost" type="button" data-life-open="planner">+ Нова задача</button>`,
+      `<button class="ghost" type="button" data-checkin-open="morning">Почати день</button><button class="primary" type="button" data-checkin-open="evening">Завершити день</button><button class="ghost" type="button" data-life-open="planner">+ Нова задача</button>`,
     );
   }
 
@@ -360,6 +365,13 @@
     if (nav) return activate(nav.dataset.lifeView);
     const open = event.target.closest("[data-life-open]");
     if (open) return activate(open.dataset.lifeOpen);
+    const checkinOpen = event.target.closest("[data-checkin-open]");
+    if (checkinOpen) return openDailyCheckin(checkinOpen.dataset.checkinOpen);
+    if (event.target.closest("[data-checkin-close]")) return document.querySelector("#daily-checkin-dialog")?.close();
+    if (event.target.closest("[data-checkin-snooze]")) {
+      await api("/api/life/daily-checkin", { method: "POST", body: JSON.stringify({ mode: "snooze", snoozed_until: new Date(Date.now() + 60 * 60 * 1000).toISOString() }) });
+      document.querySelector("#daily-checkin-dialog")?.close(); return setMessage("Відкладено на годину", "success");
+    }
     const editorClose = event.target.closest("[data-task-editor-close]");
     if (editorClose) return document.querySelector("#task-editor-dialog")?.close();
     const simpleClose = event.target.closest("[data-simple-editor-close]");
@@ -510,6 +522,11 @@
         if (!route) throw new Error("Невідомий тип редактора");
         await api(route, { method: "PATCH", body: JSON.stringify(data) });
         document.querySelector("#simple-editor-dialog")?.close();
+      }
+      if (action === "daily-checkin") {
+        const priorities = [data.priority_0, data.priority_1, data.priority_2].filter(Boolean); delete data.priority_0; delete data.priority_1; delete data.priority_2;
+        await api("/api/life/daily-checkin", { method: "POST", body: JSON.stringify({ ...data, mode: form.dataset.checkinMode, priorities }) });
+        document.querySelector("#daily-checkin-dialog")?.close();
       }
       if (action === "area") await api("/api/life/areas", { method: "POST", body: JSON.stringify(data) });
       if (action === "goal") await api("/api/life/goals", { method: "POST", body: JSON.stringify(data) });
