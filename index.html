@@ -13,8 +13,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css?v=20261118-1" />
-    <link rel="stylesheet" href="crm-layout.css?v=20261116-3" />
-    <link rel="stylesheet" href="life.css?v=20261119-2" />
+    <link rel="stylesheet" href="crm-layout.css?v=20261119-5" />
+    <link rel="stylesheet" href="life.css?v=20261119-5" />
     <link rel="stylesheet" href="outreach.css?v=20261116-2" />
   </head>
   <body>
@@ -26,14 +26,14 @@
         </div>
         <nav class="nav" aria-label="Life OS navigation">
           <p class="nav-label">ОСОБИСТЕ</p>
-          <button class="nav-item life-nav active" data-life-view="dashboard">
-            <span>◌</span> Огляд
-          </button>
-          <button class="nav-item life-nav" data-life-view="today">
+          <button class="nav-item life-nav active" data-life-view="today">
             <span>☼</span> Сьогодні
           </button>
           <button class="nav-item life-nav" data-life-view="planner">
             <span>◫</span> Планер
+          </button>
+          <button class="nav-item life-nav" data-life-view="dashboard">
+            <span>◌</span> Огляд
           </button>
           <button class="nav-item life-nav" data-life-view="training">
             <span>↗</span> Тренування
@@ -69,6 +69,7 @@
           <button class="nav-item life-nav" data-life-view="settings">
             <span>⚙</span> Налаштування
           </button>
+          <button class="nav-item mobile-more" id="mobile-more" type="button" aria-expanded="false"><span>⋯</span> Ще</button>
         </nav>
         <div class="sidebar-foot">
           <span class="pulse"></span> База збережена<br /><small id="sync-label"
@@ -180,14 +181,15 @@
       </form>
     </dialog>
     <div class="auth-gate" id="auth-gate" aria-live="polite" hidden></div>
+    <button class="global-add" id="global-add" type="button" aria-label="Швидко додати запис" title="Швидко додати запис">+</button>
     <div id="life-form-message" role="status" aria-live="polite"></div>
     <script src="config.js"></script>
-    <script src="app.js?v=20261119-1"></script>
-    <script src="life-ui.js?v=20261119-4"></script>
+    <script src="app.js?v=20261119-5"></script>
+    <script src="life-ui.js?v=20261119-5"></script>
     <script src="outreach-ui.js?v=20261119-1"></script>
     <script>
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js?v=20261119-4").catch(() => {}));
+        window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js?v=20261119-5").catch(() => {}));
       }
     </script>
   </body>
