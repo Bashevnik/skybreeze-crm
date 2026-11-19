@@ -780,6 +780,9 @@ dialog input {
   }
   .sidebar {
     min-height: auto;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
     padding: 14px;
     display: block;
   }
@@ -788,6 +791,8 @@ dialog input {
   }
   .nav {
     display: flex;
+    min-width: 0;
+    max-width: 100%;
     overflow: auto;
   }
   .nav-item {
