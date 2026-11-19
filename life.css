@@ -32,6 +32,7 @@
   padding: 9px 10px;
   font-size: 11px;
 }
+.crm-nav[hidden] { display: none !important; }
 .life-view {
   min-width: 0;
 }
@@ -475,6 +476,9 @@
 .today-start-actions { display: flex; gap: 9px; flex-wrap: wrap; }
 .today-progress { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 7px; color: #3c6571; font-size: 12px; font-weight: 700; }
 .today-progress progress { grid-column: 1 / -1; width: 100%; height: 8px; accent-color: #0f9d8c; }
+.today-progress progress::-webkit-progress-bar { background: #cfe3df; border-radius: 12px; }
+.today-progress progress::-webkit-progress-value { background: #0f9d8c; border-radius: 12px; }
+.today-progress progress::-moz-progress-bar { background: #0f9d8c; border-radius: 12px; }
 .today-main-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 .today-main-grid > .life-panel { min-width: 0; padding: 20px; }
 .today-brief { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
