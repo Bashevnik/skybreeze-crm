@@ -257,6 +257,8 @@
   cursor: pointer;
 }
 .life-icon-action:hover { border-color: #8ac6bb; background: #edfaf7; color: #087466; }
+.life-icon-action.danger { color: #a13f4a; }
+.life-icon-action.danger:hover { border-color: #efb9bf; background: #fff2f3; color: #8b2835; }
 .color-palette { display: flex; flex-wrap: wrap; gap: 9px; margin: 0; padding: 0; border: 0; }
 .color-palette legend { width: 100%; margin-bottom: 1px; color: #66768d; font-size: 11px; font-weight: 700; }
 .color-picker-control { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; color: #40536d; font-size: 12px; font-weight: 700; cursor: pointer; }
