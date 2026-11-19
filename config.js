@@ -1,7 +1,8 @@
 // For local work the frontend uses the same origin. Set this to the HTTPS API
 // endpoint before publishing public/ to GitHub Pages, for example:
 // The local preview talks to its local server. GitHub Pages points to the
-// protected HTTPS API; the access token is entered per browser session.
+// protected HTTPS API. Access is always established by signing in to an
+// account; this static frontend never stores a separate CRM access key.
 const isLocalPreview = ["127.0.0.1", "localhost"].includes(
   window.location.hostname,
 );
