@@ -28,6 +28,7 @@
   height: 100vh;
   overflow-y: auto;
 }
+.mobile-more { display: none; }
 .queue-summary {
   margin-left: auto;
   margin-right: 14px;
@@ -563,4 +564,25 @@
   .section-head > p {
     margin-top: 8px;
   }
+}
+@media (max-width: 620px) {
+  .app-shell { display: block; }
+  .sidebar { position: static; height: auto; min-height: 0; padding: 10px 14px 0; background: var(--navy); }
+  .brand { padding: 2px 4px 9px; }
+  .brand b { font-size: 17px; }
+  .nav { position: fixed; z-index: 90; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; overflow: visible; padding: 7px 3px calc(7px + env(safe-area-inset-bottom)); background: #0b1020; box-shadow: 0 -6px 24px rgba(8, 20, 40, .16); }
+  .nav > .nav-label { display: none; }
+  .nav > .nav-item { min-width: 0; min-height: 52px; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 4px 1px; text-align: center; font-size: 10px; }
+  .nav > .nav-item span { font-size: 19px; line-height: 1; }
+  .nav > .nav-item[data-life-view="dashboard"], .nav > .nav-item[data-life-view="training"], .nav > .nav-item[data-life-view="analytics"], .nav > .nav-item[data-life-view="settings"] { display: none; }
+  .nav > .mobile-more { display: flex; }
+  .mobile-expanded .nav > .nav-item[data-life-view="dashboard"], .mobile-expanded .nav > .nav-item[data-life-view="training"], .mobile-expanded .nav > .nav-item[data-life-view="analytics"], .mobile-expanded .nav > .nav-item[data-life-view="settings"] { display: flex; position: absolute; bottom: calc(64px + env(safe-area-inset-bottom)); width: 50%; background: #17253a; border-radius: 0; min-height: 46px; }
+  .mobile-expanded .nav > .nav-item[data-life-view="dashboard"] { left: 0; transform: translateY(-46px); }
+  .mobile-expanded .nav > .nav-item[data-life-view="training"] { right: 0; transform: translateY(-46px); }
+  .mobile-expanded .nav > .nav-item[data-life-view="analytics"] { left: 0; }
+  .mobile-expanded .nav > .nav-item[data-life-view="settings"] { right: 0; }
+  .crm-nav[hidden] { display: none; }
+  .crm-nav:not([hidden]) { position: absolute; bottom: calc(67px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex; gap: 3px; padding: 5px; background: #17253a; border: 0; overflow-x: auto; }
+  .crm-nav .nav-item { min-height: 38px; flex: 1 0 auto; padding: 5px 8px; font-size: 10px; }
+  .main { min-width: 0; padding: 20px 14px calc(100px + env(safe-area-inset-bottom)); }
 }
