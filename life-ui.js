@@ -70,6 +70,27 @@
     if (typeof dialog.showModal === "function") dialog.showModal();
     else dialog.setAttribute("open", "");
   }
+  function editorShell(kind, id, title, fields) {
+    return `<dialog class="task-editor-dialog" id="simple-editor-dialog"><form class="task-editor" data-life-form="simple-editor" data-editor-kind="${escape(kind)}" data-editor-id="${escape(id)}"><header><div><p class="eyebrow">РЕДАГУВАННЯ</p><h2>${escape(title)}</h2></div><button class="icon-button" type="button" data-simple-editor-close aria-label="Закрити">×</button></header>${fields}<footer><span></span><button class="ghost" type="button" data-simple-editor-close>Скасувати</button><button class="primary" type="submit">Зберегти</button></footer></form></dialog>`;
+  }
+  async function openSimpleEditor(kind, id) {
+    document.querySelector("#simple-editor-dialog")?.remove();
+    const routes = { goal: "/api/life/goals", meal: `/api/life/meals?date=${today()}`, habit: `/api/life/habits?from=${today()}&to=${today()}`, note: "/api/life/mentor-notes", savings: `/api/life/finance?from=2020-01-01&to=2030-01-01`, finance: `/api/life/finance?from=2020-01-01&to=2030-01-01` };
+    const data = await api(routes[kind]);
+    const item = kind === "goal" ? data.goals?.find((row) => row.id === id) : kind === "meal" ? data.meals?.find((row) => row.id === id) : kind === "habit" ? data.habits?.find((row) => row.id === id) : kind === "note" ? data.notes?.find((row) => row.id === id) : kind === "savings" ? data.savings_goals?.find((row) => row.id === id) : data.entries?.find((row) => row.id === id);
+    if (!item) throw new Error("Запис не знайдений або не належить цьому акаунту");
+    const input = (name, label, value = "", type = "text") => `<label>${label}<input name="${name}" type="${type}" value="${escape(value ?? "")}"></label>`;
+    const select = (name, label, values, value) => `<label>${label}<select name="${name}">${values.map(([key, text]) => `<option value="${key}"${key === value ? " selected" : ""}>${text}</option>`).join("")}</select></label>`;
+    let fields = "";
+    if (kind === "goal") fields = `${input("title", "Назва", item.title)}<label>Опис<textarea name="description" rows="3">${escape(item.description)}</textarea></label><div class="form-row">${input("current_value", "Поточне значення", item.current_value ?? "", "number")}${input("target_value", "Цільове значення", item.target_value ?? "", "number")}</div>${input("unit", "Одиниця", item.unit)}${input("due_date", "Дедлайн", item.due_date, "date")}`;
+    if (kind === "meal") fields = `${input("title", "Страва / продукт", item.title)}<div class="form-row">${select("meal_type", "Тип", [["breakfast","Сніданок"],["lunch","Обід"],["dinner","Вечеря"],["snack","Перекус"]], item.meal_type)}${input("amount_g", "Вага, г", item.amount_g ?? "", "number")}</div>${input("amount_text", "Як записано", item.amount_text)}<label>Нотатка<textarea name="note" rows="2">${escape(item.note)}</textarea></label>`;
+    if (kind === "habit") fields = `${input("title", "Звичка", item.title)}<div class="form-row">${select("cadence", "Частота", [["weekly","Щотижня"],["daily","Щодня"]], item.cadence)}${select("weekday", "День", [["0","Неділя"],["1","Понеділок"],["2","Вівторок"],["3","Середа"],["4","Четвер"],["5","П’ятниця"],["6","Субота"]], String(item.weekday ?? 0))}</div>`;
+    if (kind === "note") fields = `${input("met_on", "Дата", item.met_on, "date")}<label>Тема / думка<textarea name="advice" rows="3">${escape(item.advice)}</textarea></label><label>Висновок<textarea name="insight" rows="2">${escape(item.insight)}</textarea></label><label>Наступна дія<textarea name="action_items" rows="2">${escape(item.action_items)}</textarea></label>`;
+    if (kind === "savings") fields = `${input("current_amount", "Поточна сума", item.current_amount, "number")}<p class="form-help">Ціль і дедлайн залишаються без змін у цьому швидкому редакторі.</p>`;
+    if (kind === "finance") fields = `${select("entry_type", "Тип", [["income","Дохід"],["expense","Витрата"],["saving","Накопичення"]], item.entry_type)}<div class="form-row">${input("amount", "Сума", item.amount, "number")}${select("currency", "Валюта", [["UAH","UAH"],["USD","USD"]], item.currency)}</div>${input("occurred_on", "Дата", item.occurred_on, "date")}${input("category", "Категорія", item.category)}<label>Нотатка<textarea name="note" rows="2">${escape(item.note)}</textarea></label>`;
+    document.body.insertAdjacentHTML("beforeend", editorShell(kind, id, "Змінити запис", fields));
+    const dialog = document.querySelector("#simple-editor-dialog"); dialog.addEventListener("close", () => dialog.remove(), { once: true }); dialog.showModal?.();
+  }
   function setMessage(message = "", tone = "") {
     const node = $("#life-form-message");
     if (!node) return;
@@ -137,7 +158,7 @@
       ["week", "Тиждень", "Короткий план, який можна реально виконати"],
     ].map(([period, title, text]) => {
       const rows = (goals.goals || []).filter((goal) => goal.period === period && goal.status !== "archived");
-      return `<section class="goal-column"><p class="eyebrow">${period.toUpperCase()}</p><h3>${title}</h3><p>${text}</p>${rows.length ? rows.map((goal) => `<article class="goal-item"><b>${escape(goal.title)}</b>${goal.target_value != null ? `<small>${number(goal.current_value)} / ${number(goal.target_value)} ${escape(goal.unit)}</small>` : ""}${goal.due_date ? `<small>до ${formatDate(goal.due_date)}</small>` : ""}</article>`).join("") : '<span class="muted">Поки не задано</span>'}</section>`;
+      return `<section class="goal-column"><p class="eyebrow">${period.toUpperCase()}</p><h3>${title}</h3><p>${text}</p>${rows.length ? rows.map((goal) => `<article class="goal-item"><div><b>${escape(goal.title)}</b>${goal.target_value != null ? `<small>${number(goal.current_value)} / ${number(goal.target_value)} ${escape(goal.unit)}</small>` : ""}${goal.due_date ? `<small>до ${formatDate(goal.due_date)}</small>` : ""}</div><button class="life-icon-action" type="button" data-simple-edit="goal" data-record-id="${goal.id}" aria-label="Редагувати ціль" title="Редагувати ціль">✎</button></article>`).join("") : '<span class="muted">Поки не задано</span>'}</section>`;
     }).join("");
     $("#life-view").innerHTML = page(
       "ПЛАНЕР · ВІД НАПРЯМКУ ДО ДІЇ",
@@ -341,6 +362,13 @@
     if (open) return activate(open.dataset.lifeOpen);
     const editorClose = event.target.closest("[data-task-editor-close]");
     if (editorClose) return document.querySelector("#task-editor-dialog")?.close();
+    const simpleClose = event.target.closest("[data-simple-editor-close]");
+    if (simpleClose) return document.querySelector("#simple-editor-dialog")?.close();
+    const simpleEdit = event.target.closest("[data-simple-edit]");
+    if (simpleEdit) {
+      simpleEdit.disabled = true;
+      try { return await openSimpleEditor(simpleEdit.dataset.simpleEdit, simpleEdit.dataset.recordId); } catch (error) { return setMessage(error.message || "Не вдалося відкрити редактор", "error"); } finally { simpleEdit.disabled = false; }
+    }
     const taskEdit = event.target.closest("[data-task-edit]");
     if (taskEdit) {
       taskEdit.disabled = true;
@@ -475,6 +503,13 @@
           await api("/api/life/tasks", { method: "POST", body: JSON.stringify({ ...patch, status }) });
         }
         document.querySelector("#task-editor-dialog")?.close();
+      }
+      if (action === "simple-editor") {
+        const kind = form.dataset.editorKind; const recordId = form.dataset.editorId;
+        const route = { goal: `/api/life/goals/${recordId}`, meal: `/api/life/meals/${recordId}`, habit: `/api/life/habits/${recordId}`, note: `/api/life/mentor-notes/${recordId}`, savings: `/api/life/savings-goals/${recordId}`, finance: `/api/life/finance/${recordId}` }[kind];
+        if (!route) throw new Error("Невідомий тип редактора");
+        await api(route, { method: "PATCH", body: JSON.stringify(data) });
+        document.querySelector("#simple-editor-dialog")?.close();
       }
       if (action === "area") await api("/api/life/areas", { method: "POST", body: JSON.stringify(data) });
       if (action === "goal") await api("/api/life/goals", { method: "POST", body: JSON.stringify(data) });
