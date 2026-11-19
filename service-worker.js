@@ -1,14 +1,14 @@
-const CACHE = "skybreeze-life-shell-20261116-6";
+const CACHE = "skybreeze-life-shell-20261119-1";
 const SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20261116-5",
+  "./styles.css?v=20261118-1",
   "./crm-layout.css?v=20261116-3",
-  "./life.css?v=20261116-1",
-  "./app.js?v=20261116-5",
-  "./life-ui.js?v=20261116-1",
+  "./life.css?v=20261119-1",
+  "./app.js?v=20261119-1",
+  "./life-ui.js?v=20261119-1",
   "./outreach.css?v=20261116-2",
-  "./outreach-ui.js?v=20261116-2",
+  "./outreach-ui.js?v=20261119-1",
   "./manifest.webmanifest?v=20261116-1",
   "./icon.svg",
 ];
@@ -18,9 +18,18 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.includes("/api/")) return;
-  // The CRM is a live operational tool. Prefer fresh UI code and retain the
-  // cached shell only as an offline fallback, rather than trapping users on
-  // an older interface after a deploy.
+  const isVersionedAsset = url.searchParams.has("v");
+  // Versioned files have a new URL on every deploy, so serving the cached
+  // version removes an avoidable network round-trip without trapping a user
+  // on stale UI code. HTML and config remain network-first.
+  if (isVersionedAsset) {
+    event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+      const copy = response.clone();
+      caches.open(CACHE).then((cache) => cache.put(request, copy));
+      return response;
+    })));
+    return;
+  }
   event.respondWith(fetch(request).then((response) => {
     const copy = response.clone();
     caches.open(CACHE).then((cache) => cache.put(request, copy));
