@@ -42,7 +42,7 @@
     const detail = [task.project_title, task.goal_title, task.due_date ? `до ${formatDate(task.due_date)}` : ""].filter(Boolean).join(" · ");
     return `<article class="task-card priority-${escape(task.priority)}">
       <div class="task-card-copy"><span class="task-status">${escape(statusLabel[task.status] || task.status)}</span><b>${escape(task.title)}</b>${detail ? `<small>${escape(detail)}</small>` : ""}${!compact && task.notes ? `<p>${escape(task.notes)}</p>` : ""}</div>
-      <div class="task-card-actions"><button class="life-icon-action" type="button" data-task-edit="${task.id}" title="Редагувати задачу" aria-label="Редагувати задачу">✎</button>${task.status !== "done" && task.status !== "archived" ? `<button class="life-icon-action" type="button" data-task-transition="${task.id}" data-task-status="done" title="Позначити виконаною" aria-label="Позначити виконаною">✓</button><button class="life-icon-action" type="button" data-task-transition="${task.id}" data-task-status="${task.status === "today" ? "week" : "today"}" title="${task.status === "today" ? "Перенести на тиждень" : "Додати в сьогодні"}" aria-label="${task.status === "today" ? "Перенести на тиждень" : "Додати в сьогодні"}">↗</button>` : ""}</div>
+      <div class="task-card-actions"><button class="life-icon-action" type="button" data-task-edit="${task.id}" title="Редагувати задачу" aria-label="Редагувати задачу">✎</button>${task.status !== "done" && task.status !== "archived" ? `<button class="life-icon-action" type="button" data-task-transition="${task.id}" data-task-status="done" title="Позначити виконаною" aria-label="Позначити виконаною">✓</button><button class="life-icon-action" type="button" data-task-transition="${task.id}" data-task-status="${task.status === "today" ? "week" : "today"}" title="${task.status === "today" ? "Перенести на тиждень" : "Додати в сьогодні"}" aria-label="${task.status === "today" ? "Перенести на тиждень" : "Додати в сьогодні"}">↗</button>` : ""}<button class="life-icon-action danger" type="button" data-task-delete="${task.id}" title="Видалити задачу" aria-label="Видалити задачу">×</button></div>
     </article>`;
   }
   function taskList(title, tasks, detail) {
@@ -350,6 +350,18 @@
     if (taskQuick) {
       taskQuick.disabled = true;
       try { return await openTaskEditor(); } catch (error) { setMessage(error.message, "error"); } finally { taskQuick.disabled = false; }
+    }
+    const taskDelete = event.target.closest("[data-task-delete]");
+    if (taskDelete) {
+      if (!window.confirm("Видалити цю задачу без можливості відновлення?")) return;
+      taskDelete.disabled = true;
+      try {
+        await api(`/api/life/tasks/${taskDelete.dataset.taskDelete}`, { method: "DELETE" });
+        return render(state.view);
+      } catch (error) {
+        taskDelete.disabled = false;
+        return setMessage(error.message || "Не вдалося видалити задачу", "error");
+      }
     }
     const areaColor = event.target.closest("[data-area-color]");
     if (areaColor) {
