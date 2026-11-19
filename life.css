@@ -496,6 +496,10 @@
 .quick-add-options button span { display: grid; gap: 2px; color: #1c3144; font-size: 13px; }
 .quick-add-options button small { color: #78899c; font-size: 11px; font-weight: 500; }
 .checkin-step { display: grid; gap: 14px; }
+.checkin-picker { display: grid; gap: 11px; }
+.checkin-extra { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; padding-top: 10px; border-top: 1px solid #e2eaf1; }
+.checkin-extra .ghost { min-height: 40px; }
+.checkin-save-feedback:not(:empty), [data-checkin-task-feedback]:not(:empty) { color: #166f63; font-weight: 700; }
 .checkin-step[hidden], .task-editor button[hidden] { display: none !important; }
 .global-add { position: fixed; z-index: 80; right: 25px; bottom: 25px; width: 52px; height: 52px; border: 0; border-radius: 16px; background: #0d9e8d; color: white; box-shadow: 0 9px 27px rgba(8, 69, 68, .25); font: 500 30px Manrope; cursor: pointer; }
 .global-add:hover { background: #087f72; }
@@ -532,6 +536,7 @@ body.auth-open .global-add { display: none; }
   .today-start-actions > button { flex: 1; }
 }
 @media (max-width: 620px) {
+  .checkin-extra { grid-template-columns: 1fr; }
   .quick-add-options { grid-template-columns: 1fr; }
   .quick-add-options button { min-height: 55px; }
   .global-add { right: 14px; bottom: calc(84px + env(safe-area-inset-bottom)); }
