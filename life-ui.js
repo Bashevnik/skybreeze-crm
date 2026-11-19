@@ -71,11 +71,11 @@
     const priority = task.priority || "normal";
     return `<dialog class="task-editor-dialog" id="task-editor-dialog" aria-labelledby="task-editor-title"><form class="task-editor" data-life-form="task-editor" data-task-id="${escape(task.id || "")}" data-original-status="${escape(status)}"><header><div><p class="eyebrow">${isNew ? "ШВИДКА ЗАДАЧА" : "РЕДАГУВАННЯ ЗАДАЧІ"}</p><h2 id="task-editor-title">${isNew ? "Додати дію" : "Змінити задачу"}</h2></div><button class="icon-button" type="button" data-task-editor-close aria-label="Закрити">×</button></header><label>Що зробити<input name="title" maxlength="220" required autofocus value="${escape(task.title || "")}" placeholder="Один зрозумілий наступний крок"></label><div class="form-row"><label>Коли<select name="status">${["today", "week", "month", "inbox", "done", "archived"].map((value) => `<option value="${value}"${value === status ? " selected" : ""}>${statusLabel[value]}</option>`).join("")}</select></label><label>Пріоритет<select name="priority">${["high", "normal", "low"].map((value) => `<option value="${value}"${value === priority ? " selected" : ""}>${({ high: "Високий", normal: "Звичайний", low: "Низький" })[value]}</option>`).join("")}</select></label></div><div class="form-row"><label>Дедлайн<input name="due_date" type="date" value="${escape(task.due_date || "")}"></label><label>Оцінка, хв<input name="estimate_minutes" type="number" min="1" max="1440" inputmode="numeric" value="${task.estimate_minutes ?? ""}"></label></div><div class="form-row"><label>Проєкт<select name="project_id">${selectOptions(projects, task.project_id || "", "Без проєкту")}</select></label><label>Ціль<select name="goal_id">${selectOptions(goals, task.goal_id || "", "Без цілі")}</select></label></div><label>Нотатка<textarea name="notes" rows="3" placeholder="Контекст, посилання або критерій готовності">${escape(task.notes || "")}</textarea></label><footer>${!isNew && status !== "archived" ? `<button class="danger-quiet" type="button" data-task-transition="${escape(task.id)}" data-task-status="archived">В архів</button>` : ""}<span></span><button class="ghost" type="button" data-task-editor-close>Скасувати</button><button class="primary" type="submit">${isNew ? "Додати" : "Зберегти"}</button></footer></form></dialog>`;
   }
-  async function openTaskEditor(taskId = "") {
+  async function openTaskEditor(taskId = "", goalId = "") {
     setMessage("");
     document.querySelector("#task-editor-dialog")?.remove();
     const [taskData, projectsData, goalsData] = await Promise.all([
-      taskId ? api(`/api/life/tasks/${taskId}`) : Promise.resolve({ status: "today", priority: "normal", due_date: "", estimate_minutes: "", title: "", notes: "" }),
+      taskId ? api(`/api/life/tasks/${taskId}`) : Promise.resolve({ status: "today", priority: "normal", due_date: "", estimate_minutes: "", title: "", notes: "", goal_id: goalId }),
       api("/api/life/projects"),
       api("/api/life/goals"),
     ]);
@@ -99,7 +99,7 @@
   }
   function openQuickAdd() {
     if (!app()?.state?.user) return;
-    state.quickContext = state.view || "today";
+    state.quickContext = app().state.section === "crm" ? "crm" : (state.view || "today");
     document.querySelector("#quick-add-dialog")?.remove();
     document.body.insertAdjacentHTML("beforeend", quickAddMarkup());
     const dialog = document.querySelector("#quick-add-dialog");
@@ -282,7 +282,7 @@
       ["week", "Тиждень", "Короткий план, який можна реально виконати"],
     ].map(([period, title, text]) => {
       const rows = (goals.goals || []).filter((goal) => goal.period === period && goal.status !== "archived");
-      return `<section class="goal-column"><p class="eyebrow">${period.toUpperCase()}</p><h3>${title}</h3><p>${text}</p>${rows.length ? rows.map((goal) => `<article class="goal-item"><div><b>${escape(goal.title)}</b>${goal.target_value != null ? `<small>${number(goal.current_value)} / ${number(goal.target_value)} ${escape(goal.unit)}</small>` : ""}${goal.due_date ? `<small>до ${formatDate(goal.due_date)}</small>` : ""}</div><button class="life-icon-action" type="button" data-simple-edit="goal" data-record-id="${goal.id}" aria-label="Редагувати ціль" title="Редагувати ціль">✎</button></article>`).join("") : '<span class="muted">Поки не задано</span>'}</section>`;
+      return `<section class="goal-column"><p class="eyebrow">${period.toUpperCase()}</p><h3>${title}</h3><p>${text}</p>${rows.length ? rows.map((goal) => `<article class="goal-item"><div><b>${escape(goal.title)}</b>${goal.target_value != null ? `<small>${number(goal.current_value)} / ${number(goal.target_value)} ${escape(goal.unit)}</small>` : ""}${goal.due_date ? `<small>до ${formatDate(goal.due_date)}</small>` : ""}</div><div class="goal-item-actions"><button class="life-icon-action" type="button" data-goal-task="${escape(goal.id)}" aria-label="Додати задачу до цілі" title="Додати задачу до цілі">+</button><button class="life-icon-action" type="button" data-simple-edit="goal" data-record-id="${goal.id}" aria-label="Редагувати ціль" title="Редагувати ціль">✎</button></div></article>`).join("") : '<span class="muted">Поки не задано</span>'}</section>`;
     }).join("");
     $("#life-view").innerHTML = page(
       "ПЛАНЕР · ВІД НАПРЯМКУ ДО ДІЇ",
@@ -458,6 +458,7 @@
 
   function activate(view = "today") {
     const crm = view === "crm";
+    state.view = view;
     app().state.section = view;
     localStorage.setItem("life-active-section", view);
     $("#life-view").classList.toggle("hidden", crm);
@@ -501,7 +502,7 @@
       document.querySelector("#mobile-more")?.setAttribute("aria-expanded", String(expanded));
       return;
     }
-    if (event.target.closest("#global-add")) return openQuickAdd();
+    if (event.target.closest("#global-add, [data-outreach-quick]")) return openQuickAdd();
     if (event.target.closest("[data-quick-close]")) return document.querySelector("#quick-add-dialog")?.close();
     if (event.target.closest("[data-quick-back]")) {
       document.querySelector("#quick-add-form").replaceChildren();
@@ -512,7 +513,14 @@
     const quickType = event.target.closest("[data-quick-type]");
     if (quickType) {
       const type = quickType.dataset.quickType;
-      if (type === "task") { document.querySelector("#quick-add-dialog")?.close(); return openTaskEditor().catch((error) => setMessage(error.message || "Не вдалося відкрити форму", "error")); }
+      const leadDrawer = state.quickContext === "crm" ? document.querySelector('#outreach-drawer.open [data-add-note]') : null;
+      if (type === "note" && leadDrawer) { document.querySelector("#quick-add-dialog")?.close(); return leadDrawer.querySelector('[name="body"]')?.focus(); }
+      if (type === "task") {
+        document.querySelector("#quick-add-dialog")?.close();
+        const crmTask = state.quickContext === "crm" ? document.querySelector('#outreach-drawer.open [data-new-task][data-task-lead]') : null;
+        if (crmTask) return crmTask.click();
+        return openTaskEditor().catch((error) => setMessage(error.message || "Не вдалося відкрити форму", "error"));
+      }
       if (type === "goal") {
         document.querySelector("#quick-add-dialog")?.close(); await activate("planner");
         const details = document.querySelector('.goal-map .life-disclosure'); details?.setAttribute("open", ""); details?.scrollIntoView({ block: "center" });
@@ -523,6 +531,8 @@
     }
     const nav = event.target.closest("[data-life-view]");
     if (nav) return activate(nav.dataset.lifeView);
+    const goalTask = event.target.closest("[data-goal-task]");
+    if (goalTask) return openTaskEditor("", goalTask.dataset.goalTask).catch((error) => setMessage(error.message || "Не вдалося відкрити форму", "error"));
     const open = event.target.closest("[data-life-open]");
     if (open) return activate(open.dataset.lifeOpen);
     const checkinOpen = event.target.closest("[data-checkin-open]");
