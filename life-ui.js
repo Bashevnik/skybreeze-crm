@@ -224,7 +224,7 @@
 
   async function renderToday(ticket) {
     const [dashboard, tasks, reviewData, sleepData, mentorData, habitData, checkinData] = await Promise.all([
-      api("/api/life/dashboard"), api(`/api/life/tasks?date=${today()}`), api(`/api/life/daily-review?date=${today()}`), api("/api/life/sleep"), api("/api/life/mentor-notes"), api(`/api/life/habits?from=${today()}&to=${today()}`), api(`/api/life/daily-checkin?date=${today()}`),
+      api("/api/life/dashboard"), api("/api/life/tasks"), api(`/api/life/daily-review?date=${today()}`), api("/api/life/sleep"), api("/api/life/mentor-notes"), api(`/api/life/habits?from=${today()}&to=${today()}`), api(`/api/life/daily-checkin?date=${today()}`),
     ]);
     if (!isCurrent("today", ticket)) return;
     const todayTasks = (tasks.tasks || []).filter((task) => task.status === "today");
@@ -319,7 +319,7 @@
     ]);
     if (!isCurrent("nutrition", ticket)) return;
     const rows = meals.meals || [];
-    const sum = (field) => rows.reduce((total, row) => total + Number(row[field] || 0), 0);
+    const sum = (field) => rows.length && rows.every((row) => row[field] !== null && row[field] !== "" && Number.isFinite(Number(row[field]))) ? rows.reduce((total, row) => total + Number(row[field]), 0) : null;
     const targets = targetData.targets || {};
     $("#life-view").innerHTML = page(
       "ХАРЧУВАННЯ · ЩОДЕННИК",
