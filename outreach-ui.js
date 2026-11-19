@@ -104,7 +104,7 @@
   function drawer(title, content) {
     $("#drawer")?.classList.add("hidden"); let d = $("#outreach-drawer");
     if (!d) { d = document.createElement("aside"); d.id = "outreach-drawer"; d.className = "outreach-drawer"; document.body.append(d); }
-    d.innerHTML = `<header><div><p class="eyebrow">${esc(state.route.toUpperCase())}</p><h2>${esc(title)}</h2></div><button data-close-outreach aria-label="Закрити">×</button></header><div class="outreach-drawer-body">${content}</div>`; d.classList.add("open");
+    d.innerHTML = `<header><div><p class="eyebrow">${esc(state.route.toUpperCase())}</p><h2>${esc(title)}</h2></div><div class="outreach-drawer-actions"><button type="button" data-outreach-quick aria-label="Швидко додати до відкритої картки" title="Швидко додати">+</button><button data-close-outreach aria-label="Закрити">×</button></div></header><div class="outreach-drawer-body">${content}</div>`; d.classList.add("open");
   }
   function closeDrawer() { $("#outreach-drawer")?.classList.remove("open"); state.selected = null; }
   async function openLead(id) {
