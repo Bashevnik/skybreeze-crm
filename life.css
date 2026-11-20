@@ -1,13 +1,13 @@
 :root {
-  --life-bg: #f3f6fb;
+  --life-bg: #f4f7f8;
   --life-panel: #ffffff;
-  --life-ink: #13213c;
-  --life-muted: #71809a;
-  --life-line: #dde5f0;
-  --life-mint: #19d4bd;
-  --life-blue: #4d74ff;
-  --life-orange: #f3a648;
-  --life-violet: #8565e8;
+  --life-ink: #172b3d;
+  --life-muted: #63758a;
+  --life-line: #dce6e8;
+  --life-mint: #2a9d8f;
+  --life-blue: #4a78a8;
+  --life-orange: #c88943;
+  --life-violet: #7967a8;
 }
 .nav-label {
   margin: 18px 11px 5px;
@@ -327,6 +327,19 @@
   outline: none;
 }
 .life-form textarea { min-height: 62px; resize: vertical; }
+.life-form textarea { min-height: 110px; line-height: 1.6; resize: vertical; }
+.text-expand-button { justify-self: start; margin-top: -4px; border: 0; padding: 3px 0; background: transparent; color: #327c82; font: 700 12px Manrope; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.text-expand-button:hover { color: #17656d; }
+.text-composer-dialog { width: min(1080px, calc(100vw - 32px)); height: min(86dvh, 900px); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid #cddbdd; border-radius: 20px; background: #f7faf9; box-shadow: 0 30px 90px rgba(21, 45, 57, .3); }
+.text-composer-dialog::backdrop { background: rgba(18, 37, 48, .56); backdrop-filter: blur(4px); }
+.text-composer { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; gap: 16px; padding: 24px; }
+.text-composer header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.text-composer h2 { margin: 3px 0 6px; color: var(--life-ink); font-size: clamp(22px, 3vw, 32px); letter-spacing: -.04em; }
+.text-composer header p:not(.eyebrow) { max-width: 620px; margin: 0; color: var(--life-muted); line-height: 1.5; }
+.text-composer textarea { width: 100%; min-height: 0; height: 100%; resize: none; border: 1px solid #cbdadb; border-radius: 14px; padding: 18px; background: #fff; color: #172b3d; font: 500 16px/1.72 Manrope; outline: none; }
+.text-composer textarea:focus { border-color: #4e9996; box-shadow: 0 0 0 4px rgba(64, 143, 137, .14); }
+.text-composer footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.text-composer footer span { color: var(--life-muted); font-size: 12px; }
 .life-form input:focus,
 .life-form select:focus,
 .life-form textarea:focus {
@@ -499,6 +512,27 @@
 .checkin-picker { display: grid; gap: 11px; }
 .checkin-extra { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; padding-top: 10px; border-top: 1px solid #e2eaf1; }
 .checkin-extra .ghost { min-height: 40px; }
+.day-plan { display: grid; gap: 13px; min-width: 0; }
+.day-plan-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.day-plan-heading h3 { margin: 3px 0 5px; color: var(--life-ink); font-size: 20px; letter-spacing: -.025em; }
+.day-plan-heading p:not(.eyebrow) { margin: 0; color: var(--life-muted); font-size: 13px; line-height: 1.5; }
+.day-plan-slots { display: grid; gap: 9px; }
+.day-plan-slot { display: grid; grid-template-columns: 28px minmax(0, 1fr) 34px; align-items: center; gap: 9px; min-width: 0; padding: 7px 7px 7px 9px; border: 1px solid #d9e5e6; border-radius: 12px; background: #fbfdfd; }
+.day-plan-slot > span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #e5f4f1; color: #187c72; font: 800 12px Manrope; }
+.day-plan-slot input { min-width: 0; border: 0; background: transparent; box-shadow: none; padding: 8px 4px; font-weight: 700; }
+.day-plan-slot input:focus { outline: 0; box-shadow: none; }
+.day-plan-slot:focus-within { border-color: #72bcb4; box-shadow: 0 0 0 3px rgba(42, 157, 143, .11); }
+.day-plan-slot button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid #dce5e7; border-radius: 9px; background: #fff; color: #7b8997; font-size: 20px; line-height: 1; cursor: pointer; }
+.day-plan-slot button:hover { border-color: #e5a5ae; background: #fff4f5; color: #b23b4c; }
+.checkin-task-bank { overflow: hidden; border: 1px solid #dce7e8; border-radius: 12px; background: #fbfdfd; }
+.checkin-task-bank summary { padding: 12px 13px; color: #36556d; font-weight: 800; cursor: pointer; }
+.checkin-task-bank[open] summary { border-bottom: 1px solid #e3eaeb; }
+.checkin-task-bank > label { display: grid; gap: 5px; padding: 12px 13px 0; color: #61758a; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.checkin-task-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; max-height: 235px; overflow: auto; padding: 12px 13px; }
+.checkin-task-option { display: grid; gap: 3px; min-width: 0; padding: 10px; border: 1px solid #dce7e8; border-radius: 10px; background: #fff; color: #2e475e; text-align: left; cursor: pointer; }
+.checkin-task-option:hover { border-color: #68b9b0; background: #f1fbf9; }
+.checkin-task-option b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.checkin-task-option small { overflow: hidden; color: #73859a; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .checkin-save-feedback:not(:empty), [data-checkin-task-feedback]:not(:empty) { color: #166f63; font-weight: 700; }
 .checkin-step[hidden], .task-editor button[hidden] { display: none !important; }
 .global-add { position: fixed; z-index: 80; right: 25px; bottom: 25px; width: 52px; height: 52px; border: 0; border-radius: 16px; background: #0d9e8d; color: white; box-shadow: 0 9px 27px rgba(8, 69, 68, .25); font: 500 30px Manrope; cursor: pointer; }
@@ -536,7 +570,12 @@ body.auth-open .global-add { display: none; }
   .today-start-actions > button { flex: 1; }
 }
 @media (max-width: 620px) {
+  .text-composer-dialog { width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  .text-composer { padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .text-composer textarea { padding: 14px; font-size: 16px; }
+  .text-composer footer { align-items: flex-end; }
   .checkin-extra { grid-template-columns: 1fr; }
+  .checkin-task-options { grid-template-columns: 1fr; }
   .quick-add-options { grid-template-columns: 1fr; }
   .quick-add-options button { min-height: 55px; }
   .global-add { right: 14px; bottom: calc(84px + env(safe-area-inset-bottom)); }
