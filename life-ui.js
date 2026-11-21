@@ -185,7 +185,7 @@
     const taskBank = state.checkinTasks.map((task) => `<button type="button" class="checkin-task-option" data-checkin-use-task="${escape(task.title)}"><b>${escape(task.title)}</b>${task.goal_title ? `<small>${escape(task.goal_title)}</small>` : ""}</button>`).join("");
     const prioritiesPanel = `<section class="day-plan"><div class="day-plan-heading"><div><p class="eyebrow">ФОКУС ДНЯ</p><h3>Три головні задачі</h3><p>Обери з планера або впиши свою. Нова дія одразу потрапить у «Сьогодні».</p></div><span class="count-badge" data-checkin-priority-count>0 / 3</span></div><div class="day-plan-slots">${[0, 1, 2].map((index) => `<div class="day-plan-slot"><span>${index + 1}</span><input name="priority_${index}" data-checkin-priority maxlength="220" list="checkin-task-options" value="${escape(priorities[index] || "")}" placeholder="Задача ${index + 1}"><button type="button" data-checkin-clear="${index}" aria-label="Очистити задачу ${index + 1}" title="Очистити">×</button></div>`).join("")}</div><datalist id="checkin-task-options">${state.checkinTasks.map((task) => `<option value="${escape(task.title)}">`).join("")}</datalist><div class="checkin-extra"><label>Нова задача<input data-checkin-extra maxlength="220" placeholder="Наприклад: підготувати пропозицію"></label><button class="ghost" type="button" data-checkin-add-task>Додати</button></div><details class="checkin-task-bank"><summary>Показати задачі з Планера (${state.checkinTasks.length})</summary><label>Пошук<input type="search" data-checkin-search placeholder="Назва задачі"></label><div class="checkin-task-options">${taskBank || '<p class="life-quiet">Активних задач поки немає. Впиши першу вище.</p>'}</div></details><p class="form-help" data-checkin-task-feedback role="status"></p></section>`;
     const fields = mode === "evening" ? `<label>Що вдалося виконати?<textarea name="completed" rows="2">${escape(evening.completed || "")}</textarea></label><label>Що залишилось і чому?<textarea name="unfinished" rows="2">${escape(evening.unfinished || "")}</textarea></label><label>Що перенести на завтра?<textarea name="tomorrow" rows="2">${escape(evening.tomorrow || "")}</textarea></label><div class="form-row"><label>Робота, хв<input name="work_minutes" type="number" value="${evening.work_minutes ?? ""}"></label><label>Оцінка дня 1–10<input name="day_rating" type="number" min="1" max="10" value="${evening.day_rating ?? ""}"></label></div><label>Навчання / тренування / прогулянка<textarea name="activity" rows="2">${escape(evening.activity || "")}</textarea></label><label>План лягти спати<input name="planned_bedtime" type="time" value="${escape(evening.planned_bedtime || "")}"></label>` : `<div class="form-row"><label>Прокинувся<input name="woke_at" type="time" value="${escape(morning.woke_at || "")}"></label><label>Ліг спати<input name="bedtime" type="time" value="${escape(morning.bedtime || "")}"></label></div><div class="form-row"><label>Якість сну 1–10<input name="sleep_quality" type="number" min="1" max="10" value="${morning.sleep_quality ?? ""}"></label><label>Енергія 1–10<input name="energy" type="number" min="1" max="10" value="${morning.energy ?? ""}"></label></div><label>Сніданок (нотатка)<textarea name="breakfast" rows="2">${escape(morning.breakfast || "")}</textarea></label>${prioritiesPanel}`;
-    document.body.insertAdjacentHTML("beforeend", `<dialog class="task-editor-dialog" id="daily-checkin-dialog"><form class="task-editor" data-life-form="daily-checkin" data-checkin-mode="${mode}"><header><div><p class="eyebrow">${mode === "evening" ? "ВЕЧІР" : "РАНОК"} · <span id="checkin-progress">Крок 1 із 3</span></p><h2>${mode === "evening" ? "Завершити день" : "Почати день"}</h2></div><button class="icon-button" type="button" data-checkin-close aria-label="Закрити">×</button></header><input type="hidden" name="recorded_on" value="${data.recorded_on}">${fields}<p class="form-help checkin-save-feedback" role="status"></p><footer><button class="ghost" type="button" data-checkin-back hidden>Назад</button><button class="ghost" type="button" data-checkin-snooze>Пізніше</button><span></span><button class="primary" type="button" data-checkin-next>Далі</button><button class="primary" type="submit" hidden>Зберегти</button></footer></form></dialog>`);
+    document.body.insertAdjacentHTML("beforeend", `<dialog class="task-editor-dialog" id="daily-checkin-dialog"><form class="task-editor" data-life-form="daily-checkin" data-checkin-mode="${mode}" novalidate><header><div><p class="eyebrow">${mode === "evening" ? "ВЕЧІР" : "РАНОК"} · <span id="checkin-progress">Крок 1 із 3</span></p><h2>${mode === "evening" ? "Завершити день" : "Почати день"}</h2></div><button class="icon-button" type="button" data-checkin-close aria-label="Закрити">×</button></header><input type="hidden" name="recorded_on" value="${data.recorded_on}">${fields}<footer><button class="ghost" type="button" data-checkin-back hidden>Назад</button><button class="ghost" type="button" data-checkin-snooze>Пізніше</button><span class="form-help checkin-save-feedback" role="status"></span><button class="primary" type="button" data-checkin-next>Далі</button><button class="primary" type="button" data-checkin-save hidden>Зберегти</button></footer></form></dialog>`);
     const form = document.querySelector('#daily-checkin-dialog form');
     const nodes = [...form.children].filter((node) => node.matches('label, .form-row, .day-plan'));
     const groups = mode === "evening" ? [nodes.slice(0, 2), nodes.slice(2, 4), nodes.slice(4)] : [nodes.slice(0, 1), nodes.slice(1, 3), nodes.slice(3)];
@@ -208,7 +208,7 @@
     form.querySelector('#checkin-progress').textContent = `Крок ${step + 1} із 3`;
     form.querySelector('[data-checkin-back]').hidden = step === 0;
     form.querySelector('[data-checkin-next]').hidden = step === 2;
-    form.querySelector('button[type="submit"]').hidden = step !== 2;
+    form.querySelector('[data-checkin-save]').hidden = step !== 2;
   }
   function updateCheckinPriorityCount(form = document.querySelector('#daily-checkin-dialog form')) {
     if (!form) return;
@@ -621,6 +621,12 @@
     if (checkinOpen) return openDailyCheckin(checkinOpen.dataset.checkinOpen);
     if (event.target.closest('[data-checkin-next]')) return changeCheckinStep(1);
     if (event.target.closest('[data-checkin-back]')) return changeCheckinStep(-1);
+    const checkinSave = event.target.closest('[data-checkin-save]');
+    if (checkinSave) {
+      const form = checkinSave.closest('form');
+      form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return;
+    }
     const checkinTask = event.target.closest('[data-checkin-use-task]');
     if (checkinTask) return assignCheckinPriority(checkinTask.dataset.checkinUseTask, checkinTask.closest('form'));
     const clearCheckinPriority = event.target.closest('[data-checkin-clear]');
@@ -793,7 +799,7 @@
     const action = form.dataset.lifeForm;
     const data = formData(form);
     let savedRecord = null;
-    const submit = form.querySelector('button[type="submit"]');
+    const submit = action === 'daily-checkin' ? form.querySelector('[data-checkin-save]') : form.querySelector('button[type="submit"]');
     submit?.setAttribute("disabled", "");
     const originalSubmitLabel = submit?.textContent;
     if (action === "daily-checkin") {
