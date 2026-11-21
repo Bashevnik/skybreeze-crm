@@ -1,14 +1,14 @@
-const CACHE = "skybreeze-life-shell-20261121-1";
+const CACHE = "skybreeze-life-shell-20261121-2";
 const SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20261121-1",
-  "./crm-layout.css?v=20261121-1",
-  "./life.css?v=20261121-1",
-  "./app.js?v=20261121-1",
-  "./life-ui.js?v=20261121-1",
-  "./outreach.css?v=20261121-1",
-  "./outreach-ui.js?v=20261121-1",
+  "./styles.css?v=20261121-2",
+  "./crm-layout.css?v=20261121-2",
+  "./life.css?v=20261121-2",
+  "./app.js?v=20261121-2",
+  "./life-ui.js?v=20261121-2",
+  "./outreach.css?v=20261121-2",
+  "./outreach-ui.js?v=20261121-2",
   "./manifest.webmanifest?v=20261116-1",
   "./icon.svg",
 ];
