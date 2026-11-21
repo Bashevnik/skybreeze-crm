@@ -795,6 +795,14 @@
     let savedRecord = null;
     const submit = form.querySelector('button[type="submit"]');
     submit?.setAttribute("disabled", "");
+    const originalSubmitLabel = submit?.textContent;
+    if (action === "daily-checkin") {
+      const feedback = form.querySelector('.checkin-save-feedback');
+      const taskFeedback = form.querySelector('[data-checkin-task-feedback]');
+      if (feedback) feedback.textContent = 'Зберігаємо план дня…';
+      if (taskFeedback) taskFeedback.textContent = '';
+      if (submit) submit.textContent = 'Зберігаємо…';
+    }
     setMessage("");
     try {
       if (action === "task") savedRecord = await api("/api/life/tasks", { method: "POST", body: JSON.stringify(data) });
@@ -820,21 +828,24 @@
       if (action === "daily-checkin") {
         const priorities = [data.priority_0, data.priority_1, data.priority_2].map((value) => String(value || '').trim()).filter(Boolean); delete data.priority_0; delete data.priority_1; delete data.priority_2;
         if (form.dataset.checkinMode === 'morning' && (priorities.length !== 3 || new Set(priorities.map((title) => title.toLocaleLowerCase())).size !== 3)) throw new Error('Заповни три різні задачі для фокусу дня.');
+        await api("/api/life/daily-checkin", { method: "POST", body: JSON.stringify({ ...data, mode: form.dataset.checkinMode, priorities }) });
+        const confirmed = await api(`/api/life/daily-checkin?date=${data.recorded_on}`);
+        if (!confirmed.checkin || (form.dataset.checkinMode === 'morning' && JSON.stringify(confirmed.checkin.morning?.priorities) !== JSON.stringify(priorities))) throw new Error('План не підтвердився на сервері. Дані залишилися у формі — спробуй ще раз.');
         if (form.dataset.checkinMode === 'morning') {
+          const syncFailures = [];
           for (const title of priorities) {
             let task = (state.checkinTasks || []).find((item) => item.title.toLocaleLowerCase() === title.toLocaleLowerCase());
             if (!task) {
-              task = await api('/api/life/tasks', { method: 'POST', body: JSON.stringify({ title, status: 'today', priority: 'normal' }) });
-              state.checkinTasks.push(task);
-            } else if (task.status !== 'today') {
-              await api(`/api/life/tasks/${task.id}/transition`, { method: 'POST', body: JSON.stringify({ status: 'today', action: 'daily-plan' }) });
-              task.status = 'today';
+              try {
+                task = await api('/api/life/tasks', { method: 'POST', body: JSON.stringify({ title, status: 'today', priority: 'normal' }) });
+                state.checkinTasks.push(task);
+              } catch (error) {
+                syncFailures.push(title);
+              }
             }
           }
+          if (syncFailures.length) data.checkin_task_warning = `План дня збережено. Не вдалося додати ${syncFailures.length} нов. задач(і) у Планер — спробуй додати їх пізніше.`;
         }
-        await api("/api/life/daily-checkin", { method: "POST", body: JSON.stringify({ ...data, mode: form.dataset.checkinMode, priorities }) });
-        const confirmed = await api(`/api/life/daily-checkin?date=${data.recorded_on}`);
-        if (!confirmed.checkin || (form.dataset.checkinMode === 'morning' && JSON.stringify(confirmed.checkin.morning?.priorities) !== JSON.stringify(priorities))) throw new Error('Не вдалося підтвердити збереження плану. Перевір його перед повторною спробою.');
         document.querySelector("#daily-checkin-dialog")?.close();
       }
       if (action === "area") await api("/api/life/areas", { method: "POST", body: JSON.stringify(data) });
@@ -874,12 +885,14 @@
       if (action === "member") await api("/api/auth/register", { method: "POST", body: JSON.stringify(data) });
       document.querySelector("#quick-add-dialog")?.close();
       showSaved(action, { ...data, id: form.dataset.taskId, checkinMode: form.dataset.checkinMode }, savedRecord);
+      if (action === 'daily-checkin' && data.checkin_task_warning) setMessage(data.checkin_task_warning, 'success');
       if (state.view !== "crm") render(state.view).catch(() => {});
     } catch (error) {
       if (action === 'daily-checkin') { const feedback = form.querySelector('.checkin-save-feedback'); if (feedback) feedback.textContent = error.message || 'Не вдалося зберегти. Введені дані залишилися у формі.'; }
       setMessage(error.message || "Не вдалося зберегти", "error");
     } finally {
       submit?.removeAttribute("disabled");
+      if (submit && submit.isConnected && originalSubmitLabel) submit.textContent = originalSubmitLabel;
     }
   });
 
